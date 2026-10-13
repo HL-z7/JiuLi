@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.0...jiuli-v3.2.1) (2026-10-13)
+
+
+### 📝 文档
+
+* README 补已构建版本与 GitHub 代理加速 ([52f5ba3](https://github.com/HL-z7/JiuLi/commit/52f5ba387b59cdb650ff387772a5ba09f8e8c63b))
+
 ## [3.2.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.1.3...jiuli-v3.2.0) (2026-10-13)
 
 
