@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.1...jiuli-v3.2.2) (2026-10-15)
+
+
+### 🐛 Bug 修复
+
+* 插件加载异常不再带走同批剩余插件 ([53eb80a](https://github.com/HL-z7/JiuLi/commit/53eb80ad06fb4bfeefc9582ff494ad3a82f526e2))
+
 ## [3.2.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.0...jiuli-v3.2.1) (2026-10-13)
 
 
