@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.4](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.3...jiuli-v3.2.4) (2026-10-15)
+
+
+### 🐛 Bug 修复
+
+* 已编译分支不再尝试编译内核 ([509c050](https://github.com/HL-z7/JiuLi/commit/509c0508c02d0d60794735d34ad824d9bdcb623c))
+
 ## [3.2.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.2...jiuli-v3.2.3) (2026-10-15)
 
 
