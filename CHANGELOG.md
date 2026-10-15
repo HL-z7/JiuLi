@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.2...jiuli-v3.2.3) (2026-10-15)
+
+
+### 🐛 Bug 修复
+
+* 「本轮未加载」不再把 0ms 的记录当成没加载 ([6fc105d](https://github.com/HL-z7/JiuLi/commit/6fc105dc5e424a41621d2c8547f777f7dbeee16d))
+
 ## [3.2.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.1...jiuli-v3.2.2) (2026-10-15)
 
 
