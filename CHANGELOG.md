@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.5](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.4...jiuli-v3.2.5) (2026-10-16)
+
+
+### 🐛 Bug 修复
+
+* chromium_path 支持目录与 .app 写法，并在用不了时给出提示 ([6069da2](https://github.com/HL-z7/JiuLi/commit/6069da2c282331c8ad895c6aeb344f28aac9c12e))
+
 ## [3.2.4](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.3...jiuli-v3.2.4) (2026-10-15)
 
 
