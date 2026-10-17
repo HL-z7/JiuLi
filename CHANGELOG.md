@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.4.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.3.0...jiuli-v3.4.0) (2026-10-17)
+
+
+### ✨ 新功能
+
+* 完成、慢插件、执行出错日志带触发场景 ([f73be4c](https://github.com/HL-z7/JiuLi/commit/f73be4c9cc44eed6b5a5ec93d21179ed0f790266))
+* 规则日志的正则长度可配置 ([5b92ec0](https://github.com/HL-z7/JiuLi/commit/5b92ec0f55977ba211cae19fdb8de4d0cb70bb6c))
+
 ## [3.3.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.5...jiuli-v3.3.0) (2026-10-17)
 
 
