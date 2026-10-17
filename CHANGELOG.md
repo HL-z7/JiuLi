@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.5...jiuli-v3.3.0) (2026-10-17)
+
+
+### ✨ 新功能
+
+* 新增 node jiuli tune 一键内存优化与还原 ([65bf935](https://github.com/HL-z7/JiuLi/commit/65bf93503445fa7c3913b35821f33cf2ebd87221))
+
+
+### 🐛 Bug 修复
+
+* 重启前关闭 Chromium，避免残留孤儿浏览器 ([5df9a4c](https://github.com/HL-z7/JiuLi/commit/5df9a4cf72e0c5044ad6ff8d291979b16248fe80))
+
 ## [3.2.5](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.2.4...jiuli-v3.2.5) (2026-10-16)
 
 

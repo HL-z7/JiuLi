@@ -1,6 +1,6 @@
 {
   "name": "jiuli",
-  "version": "3.2.5",
+  "version": "3.3.0",
   "description": "JiuLi - 兼容 TRSS-Yunzai 生态的机器人框架",
   "type": "module",
   "main": "app.js",
