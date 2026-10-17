@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.4.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.0...jiuli-v3.4.1) (2026-10-17)
+
+
+### ✨ 新功能
+
+* 守护进程按配置注入堆上限 ([e647792](https://github.com/HL-z7/JiuLi/commit/e647792670e316852dd766043ee71d1098ce4655))
+
+
+### 📝 文档
+
+* 补充版本号规则 ([17b3be3](https://github.com/HL-z7/JiuLi/commit/17b3be360adc23c21952c5436822c4ecf82b72ab))
+
 ## [3.4.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.3.0...jiuli-v3.4.0) (2026-10-17)
 
 
