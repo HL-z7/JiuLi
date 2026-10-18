@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.1...jiuli-v3.4.2) (2026-10-18)
+
+
+### 🐛 Bug 修复
+
+* 关浏览器时不再误报 browser.close is not a function ([a699e33](https://github.com/HL-z7/JiuLi/commit/a699e33ccbbe4560393f73c4f24b5a62668ee6a4))
+
 ## [3.4.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.0...jiuli-v3.4.1) (2026-10-17)
 
 
