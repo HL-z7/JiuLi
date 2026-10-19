@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.2...jiuli-v3.4.3) (2026-10-19)
+
+
+### 🐛 Bug 修复
+
+* 被禁言的群不再继续发消息 ([106797d](https://github.com/HL-z7/JiuLi/commit/106797de581a212b444467f3d4bc86b6119af830))
+
 ## [3.4.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.1...jiuli-v3.4.2) (2026-10-18)
 
 
