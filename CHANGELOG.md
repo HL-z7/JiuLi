@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.0.0...jiuli-v4.0.1) (2026-10-20)
+
+
+### 🐛 Bug 修复
+
+* 兜底层不再被记进插件路由 ([e0a5202](https://github.com/HL-z7/JiuLi/commit/e0a52024e1231176f80d915d3003bcc0cc169d97))
+* **内核:** 插件热重载后保持兜底层在栈末尾 ([ca7eabe](https://github.com/HL-z7/JiuLi/commit/ca7eabe59b21b51e119320bd75f487741d49577d))
+
 ## [4.0.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v3.4.3...jiuli-v4.0.0) (2026-10-19)
 
 
