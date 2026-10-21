@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.2.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.1.1...jiuli-v4.2.0) (2026-10-21)
+
+
+### ✨ 新功能
+
+* 新增 command 日志等级，只记录命中指令的消息 ([4fd42d0](https://github.com/HL-z7/JiuLi/commit/4fd42d08d1c05af29409200d86891f2b1e15fb9c))
+
+
+### 🐛 Bug 修复
+
+* 加固公网请求日志的内存放大与积压 ([d6ccec0](https://github.com/HL-z7/JiuLi/commit/d6ccec09942c245811380138cca886aee4ad0147))
+
 ## [4.1.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.1.0...jiuli-v4.1.1) (2026-10-20)
 
 
