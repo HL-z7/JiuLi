@@ -1,4 +1,5 @@
-# 日志等级 trace,debug,info,warn,fatal,mark,error,off
+# 日志等级 trace,debug,info,command,mark,warn,error,fatal,off
+# command：只记录命中指令的消息（收 ◀ / 中 ▶ / 完成）和 mark/warn/error 日志；普通聊天与 info 级日志不写
 log_level: info
 # 单条日志长度
 log_length: 10000

@@ -136,6 +136,7 @@ class Util {
       case 'info':
         target = logger.logger.defaultLogger
         break
+      case 'command':
       case 'warn':
       case 'mark':
         target = logger.logger.commandLogger
