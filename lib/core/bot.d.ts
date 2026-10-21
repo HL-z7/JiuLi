@@ -63,6 +63,14 @@ export default class JiuLiBot extends EventEmitter {
     };
     /** 鉴权失败计数（仅公网来源），用于阻断暴力尝试 */
     private authFails;
+    /** 未就绪时挂起的请求上限：超出直接 503，避免启动窗口被刷出无界监听、把 req/socket 全留下来 */
+    private static MAX_ONLINE_WAITERS;
+    private onlineWaiters;
+    /** 日志里的 URL 上限：请求行最长可达 16KB，原样落盘会让单条日志放大几个数量级 */
+    private static MAX_LOG_URL;
+    /** 入站连接上限：留出 FD 给 QQ 适配器与日志文件，公网刷连接时先把框架核心保住 */
+    private static MAX_CONNECTIONS;
+    private urlForLog;
     /** 回环地址（含 IPv4 映射形态） */
     isLoopback(addr: any): boolean;
     /**
@@ -71,6 +79,14 @@ export default class JiuLiBot extends EventEmitter {
      * 否则在 nginx 后面挂一层就等于没鉴权。转发头被伪造只会让自己被拒，不会放行。
      */
     private isLocalRequest;
+    /**
+     * 服务还没就绪（插件尚未加载完）时挂起请求。
+     * 以前用 `once('online', ...)` 无上限地存，公网可以在启动窗口刷几万个请求，
+     * 每个监听都攥着 req / socket，等于一条无鉴权的内存放大通道。
+     */
+    private whenOnline;
+    /** 未就绪或排队过多：HTTP 回 503，WebSocket 握手写 503 后断开 */
+    private rejectBusy;
     /** 常数时间比较：先摘要再比较，长度不同也不提前返回 */
     private safeEqual;
     /**

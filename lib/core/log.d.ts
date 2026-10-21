@@ -1,5 +1,5 @@
 export declare const chalk: import("chalk").ChalkInstance;
-export type LogLevel = 'trace' | 'debug' | 'info' | 'mark' | 'warn' | 'error' | 'fatal' | 'off';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'command' | 'mark' | 'warn' | 'error' | 'fatal' | 'off';
 export interface LoggerChannel {
     isLevelEnabled(level: string): boolean;
     trace(...args: any[]): void;
