@@ -8,12 +8,14 @@ import path from 'node:path'
 
 export const chalk = new Chalk({ level: 3 })
 
-export type LogLevel = 'trace' | 'debug' | 'info' | 'mark' | 'warn' | 'error' | 'fatal' | 'off'
+export type LogLevel = 'trace' | 'debug' | 'info' | 'command' | 'mark' | 'warn' | 'error' | 'fatal' | 'off'
 
 const LEVEL_RANK: Record<string, number> = {
   trace: 0,
   debug: 1,
   info: 2,
+  /** 只记录真正命中指令的消息（介于 info 与 mark 之间，普通聊天不落日志） */
+  command: 2.5,
   mark: 3,
   warn: 4,
   error: 5,
@@ -39,17 +41,25 @@ let writeFile = true
 /** 流式追加写日志，按天分文件 */
 class FileWriter {
   streams = new Map<string, fs.WriteStream>()
-  /** 已交给流、尚未确认落盘的行：进程 exit 时用它同步补齐 */
-  pending = new Map<string, string[]>()
+  /**
+   * 已交给流、尚未确认落盘的行：进程 exit 时用它同步补齐。
+   * 写回调触发后立刻移除 —— 以前只加不减，日志量一大（或被请求刷日志）就是无界内存泄漏。
+   */
+  pending = new Map<string, Array<{ id: number; line: string }>>()
+  private pendingBytes = new Map<string, number>()
+  private seq = new Map<string, number>()
   /** 已切到同步追加的文件：切了之后不再走流，避免同一批数据被写两次 */
   synced = new Set<string>()
+
+  /** 单文件待补写上限：超出丢最旧的（这些行早已交给流，正常运行不受影响） */
+  private static MAX_PENDING_BYTES = 512 * 1024
+  private static MAX_PENDING_LINES = 512
+  /** 写流积压上限：磁盘慢时宁可丢日志，也不让写缓冲把内存拖垮 */
+  private static MAX_STREAM_BUFFER = 2 * 1024 * 1024
 
   write(file: string, line: string) {
     if (!writeFile) return
     try {
-      const buf = this.pending.get(file)
-      if (buf) buf.push(line)
-      else this.pending.set(file, [line])
       if (this.synced.has(file)) {
         fs.appendFileSync(file, line)
         return
@@ -61,7 +71,27 @@ class FileWriter {
         stream.on('error', () => {})
         this.streams.set(file, stream)
       }
-      stream.write(line)
+      if (stream.writableLength > FileWriter.MAX_STREAM_BUFFER) return
+
+      const id = (this.seq.get(file) || 0) + 1
+      this.seq.set(file, id)
+      let queue = this.pending.get(file)
+      if (!queue) this.pending.set(file, (queue = []))
+      queue.push({ id, line })
+      let bytes = (this.pendingBytes.get(file) || 0) + line.length
+      while (queue.length > FileWriter.MAX_PENDING_LINES || bytes > FileWriter.MAX_PENDING_BYTES) {
+        const dropped = queue.shift()!
+        bytes -= dropped.line.length
+      }
+      this.pendingBytes.set(file, bytes)
+
+      stream.write(line, () => {
+        const list = this.pending.get(file)
+        if (!list?.length) return
+        let removed = 0
+        while (list.length && list[0].id <= id) removed += list.shift()!.line.length
+        if (removed) this.pendingBytes.set(file, Math.max(0, (this.pendingBytes.get(file) || 0) - removed))
+      })
     } catch {
       /* 日志写入失败不影响运行 */
     }
@@ -76,10 +106,14 @@ class FileWriter {
    * 否则同一批数据会被写两遍。
    */
   flushSync() {
-    for (const [file, lines] of this.pending) {
-      if (!lines.length) continue
-      const text = lines.join('')
-      lines.length = 0
+    for (const [file, entries] of this.pending) {
+      if (!entries.length) {
+        this.pendingBytes.delete(file)
+        continue
+      }
+      const text = entries.map(i => i.line).join('')
+      entries.length = 0
+      this.pendingBytes.delete(file)
       if (this.synced.has(file)) continue
       this.synced.add(file)
       try {
@@ -145,16 +179,26 @@ function renderArgs(args: any[]): string {
   return parts.join(' ')
 }
 
+/**
+ * 单行硬上限：log_length 只截每个参数，来源列等字段不受它约束，
+ * 恶意请求行仍能让单行膨胀到几十 KB。日志队列再有限，也先在这里挡一道。
+ */
+const MAX_LOG_LINE = 32 * 1024
+
 /** 等级配色，只作用于终端（写文件前会 stripColor） */
 const LEVEL_STYLE: Record<string, (str: string) => string> = {
   trace: chalk.gray,
   debug: chalk.gray,
   info: chalk.cyan,
+  command: chalk.greenBright,
   mark: chalk.magenta,
   warn: chalk.yellow,
   error: (str: string) => chalk.bold.red(str),
   fatal: (str: string) => chalk.bgRed.white(str),
 }
+
+/** 终端里的等级短名：command 太长会顶掉后面的来源列 */
+const LEVEL_LABEL: Record<string, string> = { command: 'CMD' }
 
 /** 没有携带 id 的日志（插件直接调 logger.xxx、第三方库）统一挂框架名 */
 const DEFAULT_ID = 'JiuLi'
@@ -170,7 +214,7 @@ function alignId(id: string) {
 }
 
 function sizeOf(level: string): 'command' | 'error' | 'default' {
-  if (level === 'mark' || level === 'warn') return 'command'
+  if (level === 'command' || level === 'mark' || level === 'warn') return 'command'
   if (level === 'error' || level === 'fatal') return 'error'
   return 'default'
 }
@@ -219,12 +263,15 @@ function output(level: string, args: any[], id?: string | false, raw = false) {
     const name = raw ? String(source) : alignId(String(source))
     const color = String(source) === DEFAULT_ID ? chalk.bold.green : chalk.blue
     const tag = sourceId === false ? '' : `${color(`[${name}]`)} `
-    return `${timeStr()} ${style(lvl.toUpperCase().padEnd(5))} ${tag}${text}`
+    const label = (LEVEL_LABEL[lvl] || lvl.toUpperCase()).padEnd(5)
+    return `${timeStr()} ${style(label)} ${tag}${text}`
   }
 
   /** 终端 + 文件；文件里始终是完整日志（含被折叠的每一条），print=false 时只写文件 */
   const emit = (text: string, lvl: string, sourceId: any, print = true) => {
-    const msg = format(text, lvl, sourceId)
+    let msg = format(text, lvl, sourceId)
+    if (msg.length > MAX_LOG_LINE)
+      msg = `${msg.slice(0, MAX_LOG_LINE)}…[单行超限，已截断 ${msg.length - MAX_LOG_LINE} 字符]`
     if (print) {
       if (sizeOf(lvl) === 'error') console.error(msg)
       else console.log(msg)
@@ -272,7 +319,7 @@ function createChannel(...levels: string[]): LoggerChannel {
 }
 
 const defaultLogger = createChannel('trace', 'debug', 'info')
-const commandLogger = createChannel('mark', 'warn')
+const commandLogger = createChannel('command', 'mark', 'warn')
 const errorLogger = createChannel('error', 'fatal')
 
 /** 全等级直通通道，logger.logger 同时挂载它和三个子通道 */
@@ -280,7 +327,7 @@ const anyLogger: LoggerChannel = (() => {
   const channel: any = {
     isLevelEnabled: (level: string) => isEnabled(level),
   }
-  for (const level of ['trace', 'debug', 'info', 'mark', 'warn', 'error', 'fatal']) {
+  for (const level of ['trace', 'debug', 'info', 'command', 'mark', 'warn', 'error', 'fatal']) {
     channel[level] = (...args: any[]) => output(level, args)
   }
   return channel as LoggerChannel
@@ -314,7 +361,7 @@ logger.logger = Object.assign(anyLogger, {
   errorLogger,
 })
 
-const levels: LogLevel[] = ['trace', 'debug', 'info', 'mark', 'warn', 'error', 'fatal']
+const levels: LogLevel[] = ['trace', 'debug', 'info', 'command', 'mark', 'warn', 'error', 'fatal']
 for (const level of levels) {
   ;(logger as any)[level] = (...args: any[]) => (anyLogger as any)[level](...args)
 }

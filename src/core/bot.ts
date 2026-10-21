@@ -347,6 +347,20 @@ export default class JiuLiBot extends EventEmitter {
   /** 鉴权失败计数（仅公网来源），用于阻断暴力尝试 */
   private authFails = new Map<string, { count: number; time: number }>()
 
+  /** 未就绪时挂起的请求上限：超出直接 503，避免启动窗口被刷出无界监听、把 req/socket 全留下来 */
+  private static MAX_ONLINE_WAITERS = 64
+  private onlineWaiters = 0
+
+  /** 日志里的 URL 上限：请求行最长可达 16KB，原样落盘会让单条日志放大几个数量级 */
+  private static MAX_LOG_URL = 200
+
+  /** 入站连接上限：留出 FD 给 QQ 适配器与日志文件，公网刷连接时先把框架核心保住 */
+  private static MAX_CONNECTIONS = 512
+  private urlForLog(url: any) {
+    const str = String(url || '/')
+    return str.length > JiuLiBot.MAX_LOG_URL ? `${str.slice(0, JiuLiBot.MAX_LOG_URL)}…(${str.length}B)` : str
+  }
+
   /** 回环地址（含 IPv4 映射形态） */
   isLoopback(addr: any) {
     return /^(::1|::ffff:127\.|127\.)/i.test(String(addr || ''))
@@ -361,6 +375,49 @@ export default class JiuLiBot extends EventEmitter {
     if (!this.isLoopback(req.socket?.remoteAddress)) return false
     const h = req.headers || {}
     return !h['x-forwarded-for'] && !h['x-real-ip'] && !h['forwarded'] && !h['cf-connecting-ip']
+  }
+
+  /**
+   * 服务还没就绪（插件尚未加载完）时挂起请求。
+   * 以前用 `once('online', ...)` 无上限地存，公网可以在启动窗口刷几万个请求，
+   * 每个监听都攥着 req / socket，等于一条无鉴权的内存放大通道。
+   */
+  private whenOnline(req: any, resume: () => void) {
+    if (this.onlineWaiters >= JiuLiBot.MAX_ONLINE_WAITERS) return this.rejectBusy(req)
+    this.onlineWaiters++
+    let done = false
+    let timer: NodeJS.Timeout
+    const finish = (ready: boolean) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      this.off('online', onOnline)
+      this.onlineWaiters--
+      if (ready) resume()
+      else this.rejectBusy(req)
+    }
+    const onOnline = () => finish(true)
+    timer = setTimeout(() => finish(false), 15000)
+    timer.unref?.()
+    this.once('online', onOnline)
+  }
+
+  /** 未就绪或排队过多：HTTP 回 503，WebSocket 握手写 503 后断开 */
+  private rejectBusy(req: any) {
+    if (req.res?.sendStatus) {
+      try {
+        req.res.sendStatus(503)
+      } catch {}
+      return false
+    }
+    const socket = req.socket
+    if (socket && !socket.destroyed) {
+      try {
+        socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n')
+      } catch {}
+      socket.destroy()
+    }
+    return false
   }
 
   /** 常数时间比较：先摘要再比较，长度不同也不提前返回 */
@@ -425,14 +482,21 @@ export default class JiuLiBot extends EventEmitter {
     /** upgrade 请求没走过 serverAuth 的 rid/sid 赋值，这里补齐再写日志 */
     const socket = req.socket || {}
     req.rid ??= `${req.socket?.remoteAddress || ''}:${socket.remotePort}${req.headers?.['sec-websocket-key'] ? `-${req.headers['sec-websocket-key']}` : ''}`
-    req.sid ??= `${req.method || 'UPGRADE'} ${req.url || req.originalUrl || ''}`
+    req.sid ??= `${req.method || 'UPGRADE'} ${this.urlForLog(req.url || req.originalUrl)}`
     const local = this.isLocalRequest(req)
     const fails = local ? 0 : this.hitAuthFail(String(req.socket?.remoteAddress || req.ip || ''))
     if (req.res?.sendStatus) req.res.sendStatus(fails > 20 ? 429 : 401)
     /** 前几次留完整现场，之后降到 debug：公网扫描量大会把日志刷爆 */
+    /** 只留排障需要的头：Cookie / Authorization 不该进日志，头的总大小也能到 16KB */
+    const headers = {
+      host: req.headers?.host,
+      ua: String(req.headers?.['user-agent'] || '').slice(0, 120),
+      type: req.headers?.['content-type'],
+      length: req.headers?.['content-length'],
+    }
     util.makeLog(
       fails <= 3 ? 'error' : 'debug',
-      ['HTTP', req.method, '请求', req.originalUrl, '拒绝', reason, { headers: req.headers }],
+      ['HTTP', req.method, '请求', this.urlForLog(req.originalUrl), '拒绝', reason, { headers }],
       `${req.sid} <≠ ${req.rid}`,
       true,
     )
@@ -448,10 +512,10 @@ export default class JiuLiBot extends EventEmitter {
   }
 
   serverAuth(req: any): any {
-    if (this.stat.online !== 2) return this.once('online', this.serverAuth.bind(this, req))
+    if (this.stat.online !== 2) return this.whenOnline(req, () => this.serverAuth(req))
 
     req.rid ??= `${req.ip}:${req.socket?.remotePort}`
-    req.sid ??= `${req.protocol}://${req.hostname}:${req.socket?.localPort}${req.originalUrl}`
+    req.sid ??= `${req.protocol}://${req.hostname}:${req.socket?.localPort}${this.urlForLog(req.originalUrl)}`
     /** upgrade 请求没有 req.path / originalUrl，只能从 req.url 取 */
     const fullUrl = String(req.originalUrl || req.url || '/')
     const pathname = fullUrl.split('?')[0]
@@ -473,7 +537,12 @@ export default class JiuLiBot extends EventEmitter {
      */
     if (this.isLocalRequest(req)) return req.next?.()
     if (cfg.server.allow_remote === true) {
-      util.makeLog('warn', ['HTTP', req.method, '请求', req.originalUrl, '在 allow_remote 下免鉴权放行'], `${req.sid} <= ${req.rid}`, true)
+      util.makeLog(
+        'warn',
+        ['HTTP', req.method, '请求', this.urlForLog(req.originalUrl), '在 allow_remote 下免鉴权放行'],
+        `${req.sid} <= ${req.rid}`,
+        true,
+      )
       return req.next?.()
     }
     return this.denyAuth(req, '未配置 server.auth，公网访问已拒绝')
@@ -501,8 +570,26 @@ export default class JiuLiBot extends EventEmitter {
         break
       }
 
-    const msg: any = { headers: req.headers }
-    for (const i of ['query', 'body']) if (req[i] && Object.keys(req[i]).length) msg[i] = req[i]
+    /**
+     * 只记录「大小 + 键名」，不记录 body / query 原文：
+     * 一是登录、Webhook 这类请求体里有密码和令牌，二是恶意请求体可以把日志放大数倍
+     * （16KB 的请求体经序列化/着色后能占几十 KB，配合无界日志缓存可直接打爆内存）。
+     */
+    const url = String(req.originalUrl || req.url || '/')
+    const qIndex = url.indexOf('?')
+    const msg: any = { path: this.urlForLog(qIndex === -1 ? url : url.slice(0, qIndex)) }
+    if (qIndex !== -1) msg.query = `${url.length - qIndex - 1}B`
+    if (req.headers?.['content-type']) msg.type = String(req.headers['content-type']).slice(0, 64)
+    const body = req.body
+    if (body != null && (typeof body !== 'object' || Object.keys(body).length)) {
+      let size = Number(req.headers?.['content-length'])
+      if (!Number.isFinite(size)) size = -1
+      let keys: string[] | undefined
+      if (typeof body === 'string') size = body.length
+      else if (Buffer.isBuffer(body)) size = body.length
+      else keys = Object.keys(body)
+      msg.body = keys?.length ? `${size}B ${keys.slice(0, 12).join(',')}${keys.length > 12 ? '…' : ''}` : `${size}B`
+    }
     util.makeLog(quiet ? 'debug' : 'mark', ['HTTP', req.method, '请求', msg], `${req.sid} <= ${req.rid}`, true)
     req.next()
   }
@@ -518,7 +605,7 @@ export default class JiuLiBot extends EventEmitter {
   }
 
   wsConnect(req: any, socket: any, head: any): any {
-    if (this.stat.online !== 2) return this.once('online', this.wsConnect.bind(this, req, socket, head))
+    if (this.stat.online !== 2) return this.whenOnline(req, () => this.wsConnect(req, socket, head))
 
     req.rid = `${req.socket.remoteAddress}:${req.socket.remotePort}-${req.headers['sec-websocket-key']}`
     const host = req.headers.host || `${req.socket.localAddress}:${req.socket.localPort}`
@@ -531,15 +618,19 @@ export default class JiuLiBot extends EventEmitter {
       socket.write('HTTP/1.1 400 Bad Request\r\n\r\n')
       return socket.destroy()
     }
-    req.sid = `ws://${host}${req.url}`
+    req.sid = `ws://${host}${this.urlForLog(req.url)}`
     req.query = Object.fromEntries(wsUrl.searchParams.entries())
     if (this.serverAuth(req) === false) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
       return socket.destroy()
     }
 
-    const msg: any = { headers: req.headers }
-    if (Object.keys(req.query).length) msg.query = req.query
+    /** 与 HTTP 访问日志同口径：只留 query 的键和大小，不把值原样落盘 */
+    const msg: any = {}
+    if (Object.keys(req.query).length) {
+      const keys = Object.keys(req.query)
+      msg.query = `${wsUrl.search.length}B ${keys.slice(0, 12).join(',')}${keys.length > 12 ? '…' : ''}`
+    }
 
     /** 用 pathname 选处理器：带 query 或多余斜杠时 req.url 切分不可靠 */
     const path = wsUrl.pathname.split('/').filter(Boolean)[0]
@@ -596,6 +687,7 @@ export default class JiuLiBot extends EventEmitter {
 
   async serverLoad(https?: boolean) {
     const server = https ? 'httpsServer' : 'server'
+    ;(this as any)[server].maxConnections = JiuLiBot.MAX_CONNECTIONS
     ;(this as any)[server].listen(https ? cfg.server.https.port : cfg.server.port)
     try {
       await util.promiseEvent((this as any)[server], 'listening', https ? 'error' : undefined)
