@@ -43,6 +43,11 @@ declare class Util {
     /** 统一取 Buffer / base64:// / http(s) / file:// / 本地路径 */
     Buffer(data: any, opts?: any): Promise<any>;
     fileType(data: any, opts?: any): Promise<any>;
+    /**
+     * 重启 / 停止命令会被 pm2 的 TreeKill 连带收掉：子进程以 SIGINT 结束，
+     * 但 pm2 守护进程早已收到指令，属于预期结果，不能当失败报。
+     */
+    isExpectedSignal(error: any, opts?: any): boolean;
     exec(cmd: string | string[], opts?: any): Promise<any>;
     cmdPath(cmd: string, opts?: any): Promise<any>;
     cmdStart(cmd: string, args?: string[], opts?: any): import("child_process").ChildProcessWithoutNullStreams;
