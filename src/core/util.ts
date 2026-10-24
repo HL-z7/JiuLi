@@ -504,6 +504,14 @@ class Util {
     return file
   }
 
+  /**
+   * 重启 / 停止命令会被 pm2 的 TreeKill 连带收掉：子进程以 SIGINT 结束，
+   * 但 pm2 守护进程早已收到指令，属于预期结果，不能当失败报。
+   */
+  isExpectedSignal(error: any, opts: any = {}) {
+    return !!opts.expectSignal && (error?.signal === 'SIGINT' || error?.signal === 'SIGTERM')
+  }
+
   async exec(cmd: string | string[], opts: any = {}) {
     const { promise, resolve } = Promise.withResolvers<any>()
     const raw = this.String(cmd)
@@ -517,12 +525,14 @@ class Util {
       stdout = String(stdout).trim()
       stderr = String(stderr).trim()
       resolve({ error, stdout, stderr, raw })
+      const signalled = this.isExpectedSignal(error, opts)
+      const level = opts.quiet || signalled ? 'debug' : 'mark'
       this.makeLog(
-        opts.quiet ? 'debug' : 'mark',
+        level,
         `${name} ${logger.green(`[完成${this.getTimeDiff(start_time)}]`)} ${stdout ? `\n${stdout}` : ''}${stderr ? logger.red(`\n${stderr}`) : ''}`,
         'Command',
       )
-      if (error) this.makeLog(opts.quiet ? 'debug' : 'error', error, 'Command')
+      if (error) this.makeLog(opts.quiet || signalled ? 'debug' : 'error', error, 'Command')
     }
     if (Array.isArray(cmd)) execFile(cmd.shift() as string, cmd, opts, callback)
     else exec(cmd, opts, callback)
