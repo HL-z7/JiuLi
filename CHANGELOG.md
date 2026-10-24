@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.0...jiuli-v4.2.1) (2026-10-24)
+
+
+### 🐛 Bug 修复
+
+* pm2 重启不再把被 TreeKill 的 restart 命令报成失败 ([5d7d62d](https://github.com/HL-z7/JiuLi/commit/5d7d62d70628a2c91ca15977eb51c57767100c99))
+
 ## [4.2.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.1.1...jiuli-v4.2.0) (2026-10-21)
 
 
