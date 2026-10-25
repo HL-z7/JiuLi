@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.2...jiuli-v4.2.3) (2026-10-25)
+
+
+### 🐛 Bug 修复
+
+* 云崽插件不再因 accept 抢先而丢失原始消息 ([9ae2975](https://github.com/HL-z7/JiuLi/commit/9ae2975ddc352ea0053b2c27079502d6c23af156))
+
 ## [4.2.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.1...jiuli-v4.2.2) (2026-10-25)
 
 
