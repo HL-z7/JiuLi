@@ -1215,6 +1215,13 @@ class PluginsLoader {
 
     e.only_reply_at = this.onlyReplyAt(e, groupCfg)
 
+    /**
+     * 云崽插件常以 e.original_msg 判定原始指令（例如 xiaoyao 的 dispatch）。
+     * accept 阶段只要有一个插件返回 true 就会中断，后面的插件拿不到 accept 回调，
+     * 这里补默认值，避免这些插件把整条消息当成空文本跳过。
+     */
+    if (e.original_msg === undefined) e.original_msg = e.msg
+
     /** 派生字段齐了，这里才判「只响应主人」：非主人直接静默结束（连"收 ◀"都不打） */
     if (!this.checkMasterOnly(e, groupCfg)) e.__skipDeal = true
   }
