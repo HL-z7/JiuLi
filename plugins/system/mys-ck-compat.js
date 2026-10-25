@@ -137,6 +137,41 @@ export default class MysCookieCompat extends JiuLiPlugin {
      */
     if (Bot.stat?.online === 2) sync()
     else Bot.once('online', sync)
+    this.watchDb()
+  }
+
+  /**
+   * 监听 ck 数据库变化：扫码登录 / 重新绑定这类流程不会发「带 login_ticket 的消息」，
+   * 旁路捕获拿不到，只能靠数据库变更兜底把新 ck 导出到云崽文件。
+   * sequelize 走 WAL，写入是异步的，所以做 2 秒防抖 + 单飞，避免重复全量同步。
+   */
+  watchDb() {
+    const dir = path.dirname(DB_FILE)
+    this.maybeSync = () => {
+      if (this.syncTimer) return
+      this.syncTimer = setTimeout(() => {
+        this.syncTimer = null
+        if (this.syncing) return
+        this.syncing = true
+        this.syncAll()
+          .catch(err => logger.debug(`[云崽ck兼容] 自动同步失败：${err}`))
+          .finally(() => (this.syncing = false))
+      }, 2000)
+      this.syncTimer.unref?.()
+    }
+    try {
+      /** 目录级监听：data.db / -wal / -shm 都在这个目录里，监听单个文件容易漏 */
+      this.dbWatcher = fs.watch(dir, (_event, name) => {
+        if (name && /^data\.db(-wal|-shm)?$/.test(String(name))) this.maybeSync()
+      })
+      this.dbWatcher.on('error', err => logger.debug(`[云崽ck兼容] 数据库监听失败：${err}`))
+      this.dbWatcher.unref?.()
+    } catch (err) {
+      logger.debug(`[云崽ck兼容] 无法监听数据库目录：${err}`)
+    }
+    /** 兜底：文件系统事件偶发丢失时每 10 分钟补一次（内容没变不会重写） */
+    this.syncTick = setInterval(() => this.maybeSync(), 10 * 60 * 1000)
+    this.syncTick.unref?.()
   }
 
   /* ==================== 旁路捕获 ==================== */
@@ -239,12 +274,18 @@ export default class MysCookieCompat extends JiuLiPlugin {
     }
     if (!Object.values(out).some(ds => ds.isMain)) Object.values(out)[0].isMain = true
 
-    fs.mkdirSync(COOKIE_DIR, { recursive: true })
-    fs.writeFileSync(
-      file,
-      `# 由 JiuLi「云崽ck兼容」自动维护：改 ck 请用 #绑定ck，不要手工编辑\n${YAML.stringify(out)}`,
-      'utf8',
-    )
+    const text = `# 由 JiuLi「云崽ck兼容」自动维护：改 ck 请用 #绑定ck，不要手工编辑\n${YAML.stringify(out)}`
+    /** 自动同步会频繁触发，内容没变就不落盘，避免无谓的写放大 */
+    let same = false
+    try {
+      same = fs.readFileSync(file, 'utf8') === text
+    } catch {
+      same = false
+    }
+    if (!same) {
+      fs.mkdirSync(COOKIE_DIR, { recursive: true })
+      fs.writeFileSync(file, text, 'utf8')
+    }
     if (!state.exported[qq]) {
       state.exported[qq] = Date.now()
       this.saveStore()
