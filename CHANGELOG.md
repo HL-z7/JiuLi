@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.1...jiuli-v4.2.2) (2026-10-25)
+
+
+### 🐛 Bug 修复
+
+* 内网直连不再被当成公网拒绝 ([9a75f88](https://github.com/HL-z7/JiuLi/commit/9a75f885454cb31e7e775959caf85d50cc1060d6))
+
 ## [4.2.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.0...jiuli-v4.2.1) (2026-10-24)
 
 
