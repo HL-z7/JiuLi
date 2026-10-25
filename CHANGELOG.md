@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.3.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.3...jiuli-v4.3.0) (2026-10-25)
+
+
+### ✨ 新功能
+
+* ck 兼容层自动跟随数据库变化 ([114f23f](https://github.com/HL-z7/JiuLi/commit/114f23ffd99a80290b822dda8515215b9c898225))
+
+
+### 🐛 Bug 修复
+
+* accept 钩子不再因前一个插件命中而中断 ([2fa6369](https://github.com/HL-z7/JiuLi/commit/2fa6369666ae59702902f596c51d4683085b7cea))
+
 ## [4.2.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.2...jiuli-v4.2.3) (2026-10-25)
 
 
