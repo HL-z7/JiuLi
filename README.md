@@ -243,7 +243,7 @@ node jiuli a <插件仓库地址>     # 或手动复制目录后 pnpm install
 - `bot.yaml`：`log_level`（`command` 等级只记录命中指令的消息，普通聊天不写日志）、`log_msg`、`log_rule_length`（规则日志里正则的显示上限）、`plugin_load_timeout`、`file_watch`、`chromium_path`、`max_old_space_size`
 - `jiuli.yaml`：`compat.spoof_yunzai`、`redis_fallback`、`perf.*`
 - `group.yaml`：群冷却、`enable` / `disable` 功能开关
-- `server.yaml`：`url` / `port`（默认 1721）、`auth`（`access_token: <密钥>`，支持同名请求头、`Authorization: Bearer` 或 query 参数）、`public`（免鉴权路径前缀）、`allow_remote`（未配 `auth` 时是否允许公网直连，默认 `false`）
+- `server.yaml`：`url` / `port`（默认 1721）、`auth`（`access_token: <密钥>`，支持同名请求头、`Authorization: Bearer` 或 query 参数）、`public`（免鉴权路径前缀）、`trust_local_network`（未配 `auth` 时内网直连是否免鉴权，默认 `true`）、`allow_remote`（未配 `auth` 时是否允许公网直连，默认 `false`）
 
 ## 开发
 

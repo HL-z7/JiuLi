@@ -7,8 +7,12 @@ redirect: https://gitee.com/fox-glaze/jiuli
 # 服务器鉴权
 # 支持任意键值：同名请求头、Authorization: Bearer <token>、query 参数都能带
 # 例：auth: { access_token: 一串随机字符 }
-# 未配置时只有本机直连免鉴权，公网请求只放行下面的 public 路径
+# 未配置时只有直连来源免鉴权：本机回环 + 内网（10/8、172.16/12、192.168/16、IPv6 ULA / 链路本地）
+# 带 X-Forwarded-For 等转发头的请求一律按公网处理，公网请求只放行下面的 public 路径
 auth:
+# 内网是否免鉴权。协议端在同一台机器、同网段或 Docker 里时保持 true；
+# 机器所在网段不完全可信就改 false，再给协议端配 auth.access_token
+trust_local_network: true
 # 未配置 auth 时，公网可直接访问的路径前缀（面板自带登录，/File 是要发给 QQ 取图的一次性地址）
 # 换用其他面板插件时，把它挂载的路径前缀也加进来
 public:

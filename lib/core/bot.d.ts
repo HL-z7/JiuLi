@@ -74,9 +74,16 @@ export default class JiuLiBot extends EventEmitter {
     /** 回环地址（含 IPv4 映射形态） */
     isLoopback(addr: any): boolean;
     /**
-     * 是否本机直连。
-     * 反向代理会把公网请求变成 127.0.0.1，所以带转发头的回环请求按外部处理，
+     * 内网地址：10/8、172.16/12、192.168/16、IPv6 ULA 与链路本地。
+     * 协议端（OneBot / Docker 容器 / 同网段机器）都从这里连进来，不能当公网拒掉；
+     * 169.254 不开，云厂商元数据服务和链路本地探测都在那。
+     */
+    isPrivateAddress(addr: any): boolean;
+    /**
+     * 是否直连来源（本机或内网）。
+     * 反向代理会把公网请求变成 127.0.0.1 或内网地址，所以带转发头的一律按外部处理，
      * 否则在 nginx 后面挂一层就等于没鉴权。转发头被伪造只会让自己被拒，不会放行。
+     * 内网信任可用 server.yaml 的 trust_local_network: false 关掉。
      */
     private isLocalRequest;
     /**
