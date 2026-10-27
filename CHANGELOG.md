@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.0...jiuli-v4.3.1) (2026-10-27)
+
+
+### 🐛 Bug 修复
+
+* 启动未完成时的 503 带上当前阶段 ([264d555](https://github.com/HL-z7/JiuLi/commit/264d5555fdf1663f81e4a7ac526ba19ccadafecc))
+* 适配器初始化卡住不再拖住启动 ([c8a427c](https://github.com/HL-z7/JiuLi/commit/c8a427cea554e485500330e0cf41fabcb2ac81d4))
+
 ## [4.3.0](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.2.3...jiuli-v4.3.0) (2026-10-25)
 
 
