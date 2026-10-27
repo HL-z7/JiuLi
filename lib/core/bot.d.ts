@@ -5,6 +5,7 @@ export default class JiuLiBot extends EventEmitter {
     stat: {
         start_time: number;
         online: number;
+        stage: string;
     };
     bot: this;
     bots: Record<string, any>;
@@ -93,6 +94,8 @@ export default class JiuLiBot extends EventEmitter {
      */
     private whenOnline;
     /** 未就绪或排队过多：HTTP 回 503，WebSocket 握手写 503 后断开 */
+    private lastBusyLog;
+    /** 未就绪或排队过多：HTTP 回 503（带上当前启动阶段），WebSocket 握手同样写 503 后断开 */
     private rejectBusy;
     /** 常数时间比较：先摘要再比较，长度不同也不提前返回 */
     private safeEqual;
