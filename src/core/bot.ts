@@ -18,7 +18,7 @@ import { currentLoadingKey } from './loading.js'
 import type { JiuLiEvent } from './types.js'
 
 export default class JiuLiBot extends EventEmitter {
-  stat = { start_time: Date.now() / 1000, online: 0 }
+  stat = { start_time: Date.now() / 1000, online: 0, stage: '启动' }
   bot = this
   bots: Record<string, any> = {}
 
@@ -423,17 +423,39 @@ export default class JiuLiBot extends EventEmitter {
   }
 
   /** 未就绪或排队过多：HTTP 回 503，WebSocket 握手写 503 后断开 */
+  private lastBusyLog = 0
+
+  /** 未就绪或排队过多：HTTP 回 503（带上当前启动阶段），WebSocket 握手同样写 503 后断开 */
   private rejectBusy(req: any) {
-    if (req.res?.sendStatus) {
+    const stage = this.stat.stage ? `机器人尚未就绪（当前阶段：${this.stat.stage}）` : '机器人尚未登录完成'
+    /** 每 10 秒最多记一条：协议端断线重连时会连续打过来 */
+    const now = Date.now()
+    if (now - this.lastBusyLog > 10000) {
+      this.lastBusyLog = now
+      util.makeLog('warn', ['请求到达时服务未就绪', stage, { url: req.originalUrl || req.url }], 'Server')
+    }
+    if (req.res?.status) {
       try {
-        req.res.sendStatus(503)
+        req.res.status(503).type('text/plain').send(`Service Unavailable
+${stage}`)
       } catch {}
       return false
     }
     const socket = req.socket
     if (socket && !socket.destroyed) {
+      const body = `Service Unavailable
+${stage}`
+      const CRLF = String.fromCharCode(13, 10)
+      const head = [
+        'HTTP/1.1 503 Service Unavailable',
+        'Connection: close',
+        'Content-Type: text/plain; charset=utf-8',
+        `Content-Length: ${Buffer.byteLength(body)}`,
+        '',
+        body,
+      ].join(CRLF)
       try {
-        socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n')
+        socket.write(head)
       } catch {}
       socket.destroy()
     }
@@ -748,25 +770,35 @@ export default class JiuLiBot extends EventEmitter {
   async run() {
     if (this.stat.online !== 0) return
     this.stat.online = 1
+    /** 启动阶段：503 的响应体与日志里带上它，卡住时不用猜卡在哪一步 */
+    const stage = (name: string) => (this.stat.stage = name)
 
     const { default: PluginsLoader } = await import('./loader.js')
     const { loadEvents } = await import('./events.js')
     const { initRedisOrFallback, ensureDirs } = await import('./start.js')
 
+    stage('准备目录')
     await ensureDirs()
+    stage('初始化 Redis')
     await initRedisOrFallback()
+    stage('启动 HTTP 服务')
     await this.serverLoad()
     if (cfg.server.https?.key && cfg.server.https?.cert) await this.httpsLoad()
     /** 加载渲染后端，浏览器仍在首次截图时懒启动 */
     const { default: renderService } = await import('./render/index.js')
+    stage('加载渲染后端')
     await renderService.load()
     /** 预热框架模块，使"插件加载耗时"只反映插件自身成本 */
+    stage('预热框架模块')
     await import('./index.js')
     await import('../index.js')
+    stage('加载插件')
     await PluginsLoader.load()
+    stage('加载事件')
     await loadEvents()
 
     this.stat.online = 2
+    this.stat.stage = ''
     const fallbackRouter = this.express.router || this.express._router
     const fallbackBefore = fallbackRouter?.stack?.length ?? 0
     this.express.use((req: any) => req.res.redirect(cfg.server.redirect)).use(this.serverError.bind(this))
