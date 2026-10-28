@@ -20,6 +20,8 @@ public:
   - /hl-icqq-web-ws
   - /chatai
   - /douyin
+  - /hl-qqbot-web
+  - /hl-qqbot-web-ws
   - /File
 # 放行全部路径给公网（等于关掉鉴权，仅用于确实不需要保护的场景）
 allow_remote: false

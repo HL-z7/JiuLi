@@ -497,8 +497,9 @@ ${stage}`
    * 这两类没有 token 也必须能访问。其余路径一律走鉴权。
    */
   private isPublicPath(pathname: string) {
-    const list = cfg.server.public
-    for (const item of Array.isArray(list) ? list : []) {
+    /** 配置里的前缀 + 运行时由插件自己登记的（面板挂载时 push，省得用户手改配置） */
+    const list = [...(Array.isArray(cfg.server.public) ? cfg.server.public : []), ...((this.express as any).public || [])]
+    for (const item of list) {
       if (!item || typeof item !== 'string') continue
       const base = item === '/' ? '/' : item.replace(/\/+$/, '')
       if (base === '/' || pathname === base || pathname.startsWith(`${base}/`)) return true
@@ -587,7 +588,7 @@ ${stage}`
       )
       return req.next?.()
     }
-    return this.denyAuth(req, '未配置 server.auth，公网访问已拒绝')
+    return this.denyAuth(req, '未配置 server.auth，公网访问已拒绝（面板类路径可加进 server.yaml 的 server.public）')
   }
 
   serverStatus(req: any) {
