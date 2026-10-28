@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.1...jiuli-v4.3.2) (2026-10-28)
+
+
+### 🐛 Bug 修复
+
+* 面板可运行时登记免鉴权路径 ([f6f0c75](https://github.com/HL-z7/JiuLi/commit/f6f0c75be4ae18612d21eff410a6002048af3f99))
+
 ## [4.3.1](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.0...jiuli-v4.3.1) (2026-10-27)
 
 
