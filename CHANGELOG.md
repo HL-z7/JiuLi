@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.3](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.2...jiuli-v4.3.3) (2026-11-01)
+
+
+### 🐛 Bug 修复
+
+* Mock 账号版本号改显示框架版本（状态图不再显示 undefined） ([5c7d88f](https://github.com/HL-z7/JiuLi/commit/5c7d88f7314b198696a3177e13882c26b58babcb))
+
 ## [4.3.2](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.1...jiuli-v4.3.2) (2026-10-28)
 
 
