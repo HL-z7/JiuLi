@@ -24,6 +24,15 @@ globalThis.__jiuli_mock_recall = RECALL
 
 const UIN = 'mock'
 
+/** 框架版本：状态图等插件读 bot.version，mock 没有协议端版本，直接显示 JiuLi 的 */
+const FRAMEWORK_VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync('package.json', 'utf8')).version
+  } catch {
+    return '0.0.0'
+  }
+})()
+
 /**
  * 机器人头像：用随仓库分发的 plugins/adapter/mock-avatar.jpg，转成 data URI。
  * 走 data URI 是为了离线也能渲染（插件常把 bot.avatar 直接塞进 HTML 截图）。
@@ -130,7 +139,11 @@ const adapter = {
       adapter,
       uin: UIN,
       nickname: 'JiuLi-Mock',
-      version: 'mock-1.0.0',
+      version: {
+        id: 'Mock',
+        name: 'JiuLi',
+        version: `v${FRAMEWORK_VERSION}`,
+      },
       avatar: AVATAR,
       getAvatarUrl: () => AVATAR,
       fl,
