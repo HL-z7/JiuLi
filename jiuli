@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+/**
+ * 简写入口：node jiuli <命令>
+ * 完整 CLI 见 jiuli.mjs（本文件只做转发，保持 node jiuli 与 node jiuli.mjs 一致）
+ */
+import('./jiuli.mjs').catch(err => {
+  console.error('[JiuLi] 启动 CLI 失败：', err?.message || err)
+  process.exit(1)
+})

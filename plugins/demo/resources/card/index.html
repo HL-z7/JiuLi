@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: #0f172a;
+      padding: 20px;
+      width: fit-content;
+    }
+    #container {
+      width: 520px;
+      padding: 28px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #ec4899 100%);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    #container::after {
+      content: "";
+      position: absolute;
+      right: -60px;
+      top: -60px;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .head { display: flex; align-items: center; gap: 14px; }
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.22);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .name { font-size: 22px; font-weight: 700; }
+    .sub { margin-top: 4px; font-size: 13px; opacity: 0.85; }
+    .stats {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .stat {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat .v { font-size: 20px; font-weight: 700; }
+    .stat .k { margin-top: 4px; font-size: 12px; opacity: 0.85; }
+    .foot {
+      margin-top: 22px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.25);
+      font-size: 12px;
+      opacity: 0.9;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="head">
+      <div class="avatar">{{ firstChar }}</div>
+      <div>
+        <div class="name">{{ name }}</div>
+        <div class="sub">{{ title }}</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      {{ each stats item }}
+      <div class="stat">
+        <div class="v">{{ item.value }}</div>
+        <div class="k">{{ item.label }}</div>
+      </div>
+      {{ /each }}
+    </div>
+
+    <div class="foot">
+      <span>JiuLi 渲染测试 · art-template</span>
+      <span>{{ time }}</span>
+    </div>
+  </div>
+</body>
+</html>

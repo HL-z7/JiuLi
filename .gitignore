@@ -1,0 +1,59 @@
+node_modules/
+pnpm-lock.yaml.bak
+
+# 构建产物（lib/core 与 lib/index.* 由 tsc 生成）
+lib/core/
+lib/index.js
+lib/index.d.ts
+lib/**/*.d.ts
+lib/**/*.js.map
+
+# 运行时数据
+logs/
+data/
+temp/
+.redis-data/
+
+# ---- 插件与配置策略（与 TRSS-Yunzai 一致）----
+# 跟踪：内置插件（system/adapter）、示例（demo）、你自己的插件（example）
+#      other 是云崽兼容别名目录（转发到 system，必须入库，否则服务器上没有）
+# 不跟踪：从网上 clone 的第三方插件目录
+/plugins/*
+!/plugins/README.md
+!/plugins/system
+!/plugins/other
+!/plugins/adapter
+!/plugins/demo
+!/plugins/example
+# 自行加入的第三方插件文件（如从云崽插件目录拷来的单个 js）默认不入库；
+# 想让它进仓库，把下面这行删掉即可
+plugins/example/qqbot图床.js
+
+# 插件在 config/ 根目录写配置（可能含账号凭据），不入库
+/config/*
+!/config/default_config/
+renderers/*/config.yaml
+
+# 冒烟测试夹具（test/fixtures 在运行时复制到此目录）
+plugins/_test-fixtures/
+
+# 编辑器
+.idea/
+.vscode/
+*.log
+test/.commit-msg
+
+# 测试/调试临时产物
+test/.tmp-*
+test/tmp-*.mjs
+
+# 测试脚本不入库（开发者在本地保留即可）
+test/
+
+# 测试用隔离插件目录
+.tmp-plugins/
+test/.restart-result
+test/.supervisor-result
+
+# 测试用的隔离目录
+.tmp-plugins*/

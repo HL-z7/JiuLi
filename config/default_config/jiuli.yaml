@@ -1,0 +1,43 @@
+# ===== JiuLi 框架专属配置 =====
+
+compat:
+  # 插件伪装模式（默认关闭）
+  #   关闭：插件识别/显示到的框架名固定为 JiuLi（不可自定义）
+  #   开启：对外展示 trss-yunzai，让个别插件走 TRSS 专属分支（显示名也会变成 TRSS-Yunzai）
+  # 注意：miao-plugin 直接读真实 package.json（jiuli），不受此项影响
+  spoof_yunzai: false
+  # 对外暴露的版本号：插件用它做功能门禁，沿用 3.1.3 可避免老插件判定"版本过低"而禁用功能
+  framework_version: "3.1.3"
+  # 注入全局变量 Bot / logger / redis / segment / Renderer / plugin
+  globals: true
+  # 事件对象注入 e.runtime（懒加载，首次访问时创建）
+  runtime: true
+
+# ---- 存储 ----
+# Redis 不可用且 host 为本机时，降级为内存实现（重启后数据丢失）
+redis_fallback: true
+
+# ---- 性能 ----
+perf:
+  # 插件耗时统计（#玖璃性能 指令查看）
+  metrics: true
+  # 慢插件告警阈值(ms)，0 关闭
+  slow_plugin_ms: 3000
+  # 消息计数写回间隔(ms)，0 为实时写入
+  count_flush_ms: 1000
+  # 每条消息只实例化一次插件（TRSS 中 accept / rule 各建一次实例）
+  once_instance: true
+  # 事件类型索引：按 event 预分组插件，避免每条消息全量遍历
+  event_index: true
+  # 插件并发导入数。Node 的 ESM 加载器在「多个模块同时求值 + 顶层 await」时
+  # 会有锁竞争，插件多（几十个以上）或内存小的机器建议调成 1~2（1 为完全串行）
+  load_concurrency: 4
+  # 热重载熔断：只统计**插件自己在加载时改写文件**造成的自激重载（人工在编辑器里改文件不计，
+  # 开发者连续存十几次代码不会被暂停）。同一插件在 reload_window 秒内自激重载达到
+  # reload_limit 次，就暂停这个插件的重载监听（只暂停它，本次运行有效，#重载 <插件名> 恢复）。
+  # 正常开发连着存几次不会触发；0 表示关闭熔断。
+  reload_limit: 5
+  reload_window: 60
+  # 全局频率兜底（只告警不暂停）：一分钟内任何来源的重载超过这个数，说明不像人在改文件，
+  # 打一条 ERROR 提醒排查（防止批量格式化误伤，所以不自动暂停）。0 关闭。
+  reload_global_limit: 12

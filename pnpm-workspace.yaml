@@ -1,0 +1,28 @@
+packages:
+  - 'plugins/**'
+
+strictDepBuilds: false
+# pnpm 10 起默认不跑依赖的 install 脚本，没列在这里的原生模块永远拿不到 .node 绑定文件。
+# 插件声明了原生依赖但忘在这加，运行时会报
+# `Could not locate the bindings file ... xxx.node`，且只在真正用到时才炸（插件侧常被 catch 吞掉，
+# 表现为「明明路径对却读不到数据」）。
+onlyBuiltDependencies:
+  - better-sqlite3
+  - classic-level
+  - puppeteer
+  - sqlite3
+  - sharp
+
+# 全量把 sqlite3 指向 NAPI 分支（自带 linux/mac/win 预编译，与 Node 版本无关）。
+#
+# 为什么必须覆盖：插件自己的 package.json 常常声明真 sqlite3（hl-plugin、hl-icqq-web 都是
+# `sqlite3: ^5.1.6`），而 sqlite3@5.1.7 没有 Node 24（ABI 137）的预编译包 → 退化成 node-gyp
+# 源码编译；它自带的 node-gyp@8.4.1 里 gyp 还在 `from distutils.version import StrictVersion`，
+# Python 3.12+ 已删除 distutils → configure 直接失败，绑定文件永远不生成，插件运行时报
+# `Could not locate the bindings file ... node_sqlite3.node`。
+# 覆盖后所有 `sqlite3` 都装成 @karinjs/sqlite3（框架自己的依赖用的就是它），不需要 gcc/python。
+#
+# 注意：pnpm 12 起只认这里（pnpm-workspace.yaml），package.json 的 pnpm.overrides 会被忽略；
+# pnpm 9 也读这个文件；pnpm 8 及更早需要把下面两行拷到 package.json 的 pnpm.overrides 里。
+overrides:
+  sqlite3: npm:@karinjs/sqlite3@^0.4.3

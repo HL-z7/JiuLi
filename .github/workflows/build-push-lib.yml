@@ -1,0 +1,155 @@
+name: 🚀 发布并推送发布分支
+
+# 触发条件：
+#   - 推送到 master / main 后做一次发布检查
+#   - 也可以在 Actions 页面手动点 "Run workflow"
+#
+# 流程：
+#   1) release-please 依据 conventional commits 开/更新 Release PR；PR 合并后打 tag、建 Release
+#   2) 只有「本次运行刚创建了 Release」时，后面的构建/推送才执行
+#   3) 装依赖 → tsc 编译内核 → 收拢要发布的文件
+#   4) 把收拢好的内容推到 release 分支（供部署使用）
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '本次只做发布：跳过 release-please 的版本判断，直接把当前分支构建产物推到 release 分支'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: write # 打 tag / 建 Release / 推送 release 分支
+  pull-requests: write # 打开并更新 Release PR
+  issues: write # 给 Release PR 打标签
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # release-please 通过 GitHub API 读配置；从这里开始的工作区也是后面 build/打包要用的代码
+      - name: ⬇️ 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🧪 触发 release-please 发布检查
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: ⚙️ 设置 Node.js 运行环境
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 本仓库的 pnpm-lock.yaml 是 lockfileVersion 6.0，pnpm 10 起读不了（会直接判为不兼容），
+      # 因此这里固定用 pnpm 9；安装脚本里的原生模块与 Chromium 在 CI 里用不到，跳过以节省时间
+      - name: 📦 配置 PNPM
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      # 提交里的 lockfile 与 pnpm-workspace.yaml 的 overrides 还没同步，--frozen-lockfile 会直接报错，
+      # 所以这里允许 pnpm 就地修正 lockfile（CI 里的结果不参与提交）
+      - name: 📦 安装依赖
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+
+      - name: 🛠️ 编译内核（tsc）
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        run: pnpm run build
+
+      # 不再依赖 package.json 的 files 字段（本项目没有配），改成显式白名单，
+      # 并把 tsc 产物 lib/core/** 一起带上 —— 它被 .gitignore 挡着，新克隆的机器靠这一步才拿得到
+      - name: 📁 准备发布所需文件
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        run: |
+          set -euo pipefail
+          dist=temp_lib_content
+          rm -rf "$dist"
+          mkdir -p "$dist"
+
+          # 先整体复制，再统一清掉所有 node_modules。
+          #
+          # 必须清：pnpm workspace 会在 plugins/<插件>/ 下创建指向仓库虚存（.pnpm）的软链接，
+          # 复制到别处后就成了断链；发布步骤用的是「解引用复制」(dereference)，
+          # 遍历到断链会 stat 失败并报 ENOENT。这些依赖本就由部署方的 pnpm install 现场生成，
+          # 不需要进发布分支。
+          for f in \
+            app.js jiuli jiuli.mjs package.json pnpm-workspace.yaml \
+            .npmrc .puppeteerrc.cjs \
+            lib plugins config templates renderers docs \
+            README.md README.en.md LICENSE
+          do
+            if [ -e "$f" ]; then
+              mkdir -p "$dist/$(dirname "$f")"
+              cp -R "$f" "$dist/$f"
+              echo "[copy] $f"
+            else
+              echo "[skip] $f 不存在"
+            fi
+          done
+
+          # 兜底：任何层级残留的 node_modules 都不进发布分支
+          find "$dist" -name node_modules -type d -prune -exec rm -rf {} +
+
+          # 复制过程可能带出断链（指向仓库外），一并清掉，避免发布步骤 stat 失败
+          find "$dist" -xtype l -delete
+
+          # 主仓库的 .gitignore 会把 lib/core 等构建产物挡掉，发布分支要保留，
+          # 所以这里换成一份只忽略依赖与运行期数据的 .gitignore
+          printf '%s\n' 'node_modules/' 'logs/' 'data/' 'temp/' '/config/config/' > "$dist/.gitignore"
+
+      # 发布分支是「拿来直接跑」的产物：不需要 TS 源码与开发依赖
+      - name: 🧹 精简发布清单
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        run: |
+          set -euo pipefail
+          cd temp_lib_content
+
+          # TS 源码与 tsconfig 只服务于构建，发布分支已带编译好的 lib/
+          rm -rf src tsconfig.json
+          # 运行期数据目录由框架启动时自己创建，不入发布分支
+          rm -rf .git data logs temp resources
+          # 不随发布分支分发 lockfile：
+          # 它记录的是 plugins/ 下各第三方插件的依赖，发布分支里没有这些目录；
+          # 部署方 pnpm install 时按 package.json / pnpm-workspace.yaml 现算即可
+          rm -f pnpm-lock.yaml
+
+          # 只摘掉开发依赖：scripts / bin / exports 这些保留，克隆下来依然 pnpm start 就能跑
+          node -e "
+            const fs = require('fs')
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+            delete pkg.devDependencies
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')
+          "
+
+      - name: 📤 推送到 release 分支
+        if: ${{ steps.release.outputs.release_created == 'true' || inputs.publish }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 要推送到的目标分支
+          publish_branch: release
+          # 包含要推送文件/目录的文件夹
+          publish_dir: temp_lib_content
+          # 每次提交时保留历史记录
+          force_orphan: false
+          # 保持原提交信息（手动触发时没有 head_commit，回退到版本号）
+          full_commit_message: "${{ github.event.head_commit.message || steps.release.outputs.tag_name }} 发布"
+          # 设置提交用户名
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'

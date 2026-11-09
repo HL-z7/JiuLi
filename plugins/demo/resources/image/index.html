@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: "Microsoft YaHei", sans-serif; background: #f1f5f9; padding: 24px; width: fit-content; }
+    #container {
+      width: 560px;
+      padding: 28px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .logo { width: 120px; height: 120px; flex-shrink: 0; }
+    .info h2 { font-size: 21px; color: #0f172a; }
+    .info p { margin-top: 8px; font-size: 13px; color: #64748b; line-height: 1.7; }
+    .info .kv { margin-top: 12px; font-size: 12px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+    .info .kv b { color: #4f46e5; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <img class="logo" src="{{ pluResPath }}assets/logo.svg" alt="logo" />
+    <div class="info">
+      <h2>本地图片资源测试</h2>
+      <p>这张 SVG 来自插件自己的 resources 目录，通过模板变量 <b>pluResPath</b> 引用，用于验证图片/字体等本地资源的渲染。</p>
+      <div class="kv">
+        <div><span class="dot"></span>渲染后端：{{ renderer }}</div>
+        <div style="margin-top:6px">模板：{{ tplPath }}</div>
+        <div style="margin-top:6px">时间：{{ time }}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# 默认配置模板：首次运行会自动复制成 config.yaml，之后只读 config.yaml
+# （config.yaml 不入库，#更新 不会覆盖你的改动；本模板文件只随版本升级更新）
+# 改动后需要重启
+
+# 浏览器选择：留空 = 自动挑。自动选择会**跳过 snap 版浏览器**（/snap/bin/*），
+# 因为 snap 沙箱读不到数据目录，会导致截图缺内容 / 白屏且不报错。
+# 想指定浏览器，写这里，或更推荐写在 config/config/bot.yaml 的 chromium_path（同样不会被覆盖）。
+
+# chromium 地址，可填写系统的 edge/chromium 路径，例如（根据实际情况调整）：
+# chromiumPath: C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+chromiumPath:
+
+# puppeteer websocket 地址。连接单独存在的 chromium。
+# puppeteerWS: 'ws://browserless:3000'
+puppeteerWS:
+
+# headless
+headless: "new"
+
+# puppeteer启动args，注意args的--前缀
+args:
+  - --disable-gpu
+  - --disable-setuid-sandbox
+  - --no-sandbox
+  - --no-zygote
+
+# puppeteer截图超时时间
+puppeteerTimeout:
+
+# 页面goto时的参数
+pageGotoParams:
+  timeout: 120000
+
+# 截图数达到时自动重启浏览器 避免生成速度越来越慢
+restartNum: 100
+
+# 空闲多少分钟后自动关闭浏览器，下次截图时自动启动（0 为不自动关闭）
+idleTime: 30
+
+# 用户数据目录
+userDataDir:

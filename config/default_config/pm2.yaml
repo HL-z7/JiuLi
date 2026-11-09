@@ -1,0 +1,9 @@
+# pm2 配置（首次启动时自动复制到 config/pm2.yaml）
+# 用法：pnpm start / pnpm stop / pnpm log / pnpm rs
+apps:
+  - name: JiuLi
+    script: ./app.js
+    max_memory_restart: 512M
+    exp_backoff_restart_delay: 1000
+    env:
+      app_type: pm2

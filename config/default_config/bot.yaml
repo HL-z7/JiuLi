@@ -1,0 +1,71 @@
+# 日志等级 trace,debug,info,command,mark,warn,error,fatal,off
+# command：只记录命中指令的消息（收 ◀ / 中 ▶ / 完成）和 mark/warn/error 日志；普通聊天与 info 级日志不写
+log_level: info
+# 单条日志长度
+log_length: 10000
+# 对象日志格式
+log_object: true
+# 日志ID对齐
+log_align: "  JiuLi  "
+# 同一条日志在这个秒数内重复出现时，终端只留第一条 + 折叠计数（日志文件始终完整；0 关闭）
+log_dedupe: 10
+# 记录消息收发内容（收 ◀ / 发 ▶），false 则只记录插件执行
+log_msg: true
+# 消息内容预览长度
+log_msg_length: 60
+# 规则命中日志里「规则」最多显示多少字符（0 = 不截断）
+# 词条类插件常把几百条词塞进一个正则（几十 KB），原样打印会刷屏，也会让日志文件暴涨
+log_rule_length: 80
+# 指令命中了规则但没有插件响应时，主动提示一句（如非主人使用主人指令）
+# 只在以 no_handler_tip_prefix 开头的消息上提示，避免普通聊天被插件的宽泛规则匹配后也回一句
+no_handler_tip: false
+# 上面那条提示认的指令前缀，多个用逗号分隔；写 * 表示不限制前缀（任何消息都可能提示）
+no_handler_tip_prefix: "#"
+# 插件加载超时
+plugin_load_timeout: 60
+# V8 老生代上限（MB）。0 = 交给 Node 按物理内存自动定（2GB 机器约 1GB，所以 RSS 能冲到 1GB+）
+# 设成 512 会让 GC 更早介入：RSS 稳定在 450~550MB，代价是 GC 稍勤；只影响回收时机，不减少真实数据
+# 一键设置：node jiuli tune（同时调渲染的 idleTime / restartNum）；改完 #重启 即生效
+max_old_space_size: 0
+# 热重载时模块初始化失败（循环 import + 顶层副作用在重载的新求值顺序下撞 TDZ）就自动重启恢复：
+# 这类失败插件自己可能吞掉，插件会处于半残状态，重启后求值顺序回到冷启动那份即恢复
+reload_restart_on_error: true
+# 监听文件变化
+file_watch: true
+
+# 自动更新时间
+update_time: 0
+# 自动重启时间
+restart_time: 0
+# 定时更新cron表达式
+update_cron:
+# 定时重启cron表达式
+restart_cron:
+# 定时关机cron表达式
+stop_cron:
+# 定时开机cron表达式
+start_cron:
+
+# 缓存群成员列表
+cache_group_member: true
+# 上线推送通知的冷却时间
+online_msg_exp: 1440
+# 文件保存时间
+file_to_url_time: 1
+# 文件访问次数
+file_to_url_times:
+# 消息类型统计
+msg_type_count: false
+# 以/开头转为#
+/→#: true
+
+# chromium 其他路径（留空 = 自动挑；自动选择会跳过 snap 版浏览器，snap 沙箱会导致截图缺内容）
+# 这个文件在 config/ 下，属于你自己的配置，#更新 不会覆盖
+chromium_path:
+# puppeteer接口地址
+puppeteer_ws:
+# puppeteer截图超时时间
+puppeteer_timeout:
+
+# 米游社接口代理地址，国际服用
+proxyAddress:

@@ -1,0 +1,14 @@
+{
+  "name": "node-fetch",
+  "version": "0.0.0-jiuli-compat",
+  "description": "JiuLi 兼容层的 node-fetch（Node 内置 fetch）",
+  "type": "module",
+  "main": "index.cjs",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}

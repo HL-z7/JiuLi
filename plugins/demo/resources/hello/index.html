@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 24px;
+    }
+    #container {
+      width: 560px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 32px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    }
+    .title { font-size: 26px; font-weight: 700; color: #333; }
+    .time { margin-top: 12px; font-size: 14px; color: #888; }
+    .badge {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f46e5;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div class="title">{{ title }}</div>
+    <div class="time">渲染时间：{{ time }}</div>
+    <div class="badge">Powered by JiuLi + art-template + puppeteer</div>
+  </div>
+</body>
+</html>

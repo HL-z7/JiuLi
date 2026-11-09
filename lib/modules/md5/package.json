@@ -1,0 +1,14 @@
+{
+  "name": "md5",
+  "version": "0.0.0-jiuli-compat",
+  "description": "JiuLi 兼容层的 md5（node:crypto）",
+  "type": "module",
+  "main": "index.cjs",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs"
+    },
+    "./package.json": "./package.json"
+  }
+}
