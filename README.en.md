@@ -62,4 +62,4 @@ Chinese only for now:
 
 ## License
 
-AGPL-3.0, same as TRSS-Yunzai. Original copyright (TimeRainStarSky, Yoimiya-Kokomi, Le-niao and others) is retained.
+GPL-3.0, same as TRSS-Yunzai. Original copyright (TimeRainStarSky, Yoimiya-Kokomi, Le-niao and others) is retained.
