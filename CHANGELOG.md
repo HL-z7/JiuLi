@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.6](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.5...jiuli-v4.3.6) (2026-11-12)
+
+
+### 📝 文档
+
+* 许可表述统一为 GPL-3.0 ([54fca96](https://github.com/HL-z7/JiuLi/commit/54fca967c4ad3795bb6bf8b5bc856cdb01d505b8))
+
 ## [4.3.5](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.4...jiuli-v4.3.5) (2026-11-07)
 
 
