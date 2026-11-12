@@ -283,5 +283,5 @@ release-please 会按这个版本出 Release PR（合并后才生效，平时不
 
 ## 许可
 
-AGPL-3.0，与 TRSS-Yunzai 一致。本项目是其重构版本，保留原作者（TimeRainStarSky、Yoimiya-Kokomi、
+GPL-3.0，与 TRSS-Yunzai 一致。本项目是其重构版本，保留原作者（TimeRainStarSky、Yoimiya-Kokomi、
 Le-niao 等）的著作权声明。

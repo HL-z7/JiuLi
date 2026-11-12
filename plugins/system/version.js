@@ -75,7 +75,7 @@ export default class Version extends JiuLiPlugin {
       `插件可见的框架标识：${cfg.frameworkName} v${cfg.frameworkVersion}（config/jiuli.yaml → compat）`,
       `Node：${process.version}  ${process.platform} ${process.arch}`,
       commit ? `提交：${commit}` : '',
-      `许可：AGPL-3.0（基于 TRSS-Yunzai 重构）`,
+      `许可：GPL-3.0（基于 TRSS-Yunzai 重构）`,
       pkg.dependencies?.puppeteer ? `渲染：puppeteer ${pkg.dependencies.puppeteer}` : '',
     ]
       .filter(Boolean)
