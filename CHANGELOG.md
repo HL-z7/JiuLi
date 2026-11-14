@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.7](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.6...jiuli-v4.3.7) (2026-11-14)
+
+
+### 🐛 Bug 修复
+
+* 释放重载与运行期累积的插件和日志资源（Mock 记录/MemoryRedis 过期/日志轮转/多实例卸载） ([e3627e6](https://github.com/HL-z7/JiuLi/commit/e3627e67d075202da830c731fc637633655858ee))
+
 ## [4.3.6](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.5...jiuli-v4.3.6) (2026-11-12)
 
 
