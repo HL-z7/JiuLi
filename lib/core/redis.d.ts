@@ -10,6 +10,10 @@ declare class MemoryRedis {
     isOpen: boolean;
     isReady: boolean;
     process: any;
+    private expiryCursor?;
+    private expiryTimer;
+    constructor();
+    private sweepExpired;
     private alive;
     private entry;
     private empty;

@@ -6,10 +6,6 @@ export declare function supportsModuleReload(): boolean;
  * @returns 是否支持整图重载（false 表示只能重载入口，调用方应记一行提示）
  */
 export declare function enableModuleReload(pluginDir: string): boolean;
-/**
- * 重载前调用：代数 +1。
- * 此后解析到的插件文件都是新 URL，等于把该插件的模块图整体换一份（旧图自然被回收）。
- */
 export declare function bumpModuleGeneration(): void;
 /** 标记重载区间：期间发生的模块求值失败都算「这次重载带来的」 */
 export declare function beginReload(): void;

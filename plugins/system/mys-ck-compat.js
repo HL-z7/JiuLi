@@ -129,15 +129,39 @@ export default class MysCookieCompat extends JiuLiPlugin {
   }
 
   async init() {
+    if (this.initialized || this.unloaded) return
+    this.initialized = true
     this.loadStore()
-    const sync = () => this.syncAll().catch(err => logger.debug(`[云崽ck兼容] 同步失败：${err}`))
+    const sync = () => {
+      this.onlineHandler = null
+      if (this.unloaded) return
+      return this.syncAll().catch(err => logger.debug(`[云崽ck兼容] 同步失败：${err}`))
+    }
     /**
      * online 在所有插件 init() 之后：genshin 的启动迁移（导入 data/MysCookie/ 后删文件）
      * 已经跑完，这时候导出的文件才不会被它吃掉。热重载 / 迟到加载时 online 早发过了，直接同步。
      */
+    this.onlineBot = Bot
     if (Bot.stat?.online === 2) sync()
-    else Bot.once('online', sync)
+    else {
+      this.onlineHandler = sync
+      Bot.once('online', sync)
+    }
     this.watchDb()
+  }
+
+  onUnload() {
+    this.unloaded = true
+    clearTimeout(this.syncTimer)
+    clearInterval(this.syncTick)
+    this.syncTimer = null
+    this.syncTick = null
+    if (this.onlineHandler) this.onlineBot?.removeListener('online', this.onlineHandler)
+    this.onlineHandler = null
+    this.onlineBot = null
+    const watcher = this.dbWatcher
+    this.dbWatcher = null
+    watcher?.close()
   }
 
   /**
@@ -146,12 +170,13 @@ export default class MysCookieCompat extends JiuLiPlugin {
    * sequelize 走 WAL，写入是异步的，所以做 2 秒防抖 + 单飞，避免重复全量同步。
    */
   watchDb() {
+    if (this.unloaded || this.syncTick) return
     const dir = path.dirname(DB_FILE)
     this.maybeSync = () => {
-      if (this.syncTimer) return
+      if (this.unloaded || this.syncTimer) return
       this.syncTimer = setTimeout(() => {
         this.syncTimer = null
-        if (this.syncing) return
+        if (this.unloaded || this.syncing) return
         this.syncing = true
         this.syncAll()
           .catch(err => logger.debug(`[云崽ck兼容] 自动同步失败：${err}`))
@@ -217,12 +242,19 @@ export default class MysCookieCompat extends JiuLiPlugin {
 
   /** 全量同步：DB 里所有绑定过 ck 的用户 → data/MysCookie/<qq>.yaml */
   async syncAll() {
+    if (this.unloaded) return 0
     const all = await readCkData()
+    if (this.unloaded) return 0
     let count = 0
-    for (const data of all) if (await this.writeUser(data)) count++
+    for (const data of all) {
+      if (this.unloaded) return count
+      if (await this.writeUser(data)) count++
+    }
     /** 清理：导出过、但现在 DB 里已经没有 ck 的用户（否则文件会被 genshin 迁移灌回 DB） */
-    for (const qq of Object.keys(this.loadStore().exported))
+    for (const qq of Object.keys(this.loadStore().exported)) {
+      if (this.unloaded) return count
       if (!all.some(u => u.qq === qq)) await this.writeUser({ qq, entries: [] })
+    }
     if (count > 0) logger.mark(`[云崽ck兼容] 已同步 ${count} 个用户的 ck → data/MysCookie/`)
     return count
   }

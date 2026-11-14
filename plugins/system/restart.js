@@ -50,12 +50,22 @@ export default class Restart extends JiuLiPlugin {
   key = 'Yz:restart'
 
   init() {
-    Bot.once('online', this.restartMsg.bind(this))
+    if (this.initialized || this.unloaded) return
+    this.initialized = true
+    this.onlineBot = Bot
+    this.onlineHandler = () => {
+      this.onlineHandler = null
+      if (!this.unloaded) return this.restartMsg()
+    }
+    Bot.once('online', this.onlineHandler)
     this.e = {
       reply: msg => Bot.sendMasterMsg(msg),
       isMaster: true,
     }
-    if (cfg.bot.restart_time) setTimeout(this.restart.bind(this), cfg.bot.restart_time * 60000)
+    if (cfg.bot.restart_time) this.restartTimer = setTimeout(() => {
+      this.restartTimer = null
+      if (!this.unloaded) return this.restart()
+    }, cfg.bot.restart_time * 60000)
 
     this.task = []
     const push = (name, cron, fnc) => {
@@ -64,6 +74,15 @@ export default class Restart extends JiuLiPlugin {
     if (cfg.bot.restart_cron) push('定时重启', cfg.bot.restart_cron, this.restart.bind(this))
     if (cfg.bot.stop_cron) push('定时关机', cfg.bot.stop_cron, this.stop.bind(this))
     if (cfg.bot.start_cron) push('定时开机', cfg.bot.start_cron, () => new Start(this.e).start())
+  }
+
+  onUnload() {
+    this.unloaded = true
+    clearTimeout(this.restartTimer)
+    this.restartTimer = null
+    if (this.onlineHandler) this.onlineBot?.removeListener('online', this.onlineHandler)
+    this.onlineHandler = null
+    this.onlineBot = null
   }
 
   async restartMsg() {
