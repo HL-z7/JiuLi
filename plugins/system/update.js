@@ -50,6 +50,8 @@ export default class Update extends JiuLiPlugin {
   oldCommitId = ''
 
   init() {
+    if (this.initialized || this.unloaded) return
+    this.initialized = true
     /** 自动/定时更新走虚拟事件（与进程管理插件同一套做法） */
     this.e = {
       isMaster: true,
@@ -62,11 +64,32 @@ export default class Update extends JiuLiPlugin {
     const push = (name, cron, fnc) => {
       for (const i of Array.isArray(cron) ? cron : [cron]) this.task.push({ name, cron: i, fnc })
     }
-    if (cfg.bot.update_cron) push('定时更新', cfg.bot.update_cron, () => this.updateAll())
+    if (cfg.bot.update_cron) push('定时更新', cfg.bot.update_cron, () => {
+      if (!this.unloaded) return this.updateAll()
+    })
   }
 
   autoUpdate() {
-    setTimeout(() => this.updateAll().finally(() => this.autoUpdate()), cfg.bot.update_time * 60000)
+    const delay = Number(cfg.bot.update_time) * 60000
+    if (this.unloaded || this.autoUpdateTimer || !(delay > 0)) return
+    this.autoUpdateTimer = setTimeout(async () => {
+      this.autoUpdateTimer = null
+      if (this.unloaded) return
+      try {
+        await this.updateAll()
+      } catch (err) {
+        Bot.makeLog('error', ['自动更新失败', err], 'Update')
+      } finally {
+        if (!this.unloaded) this.autoUpdate()
+      }
+    }, delay)
+    this.autoUpdateTimer.unref?.()
+  }
+
+  onUnload() {
+    this.unloaded = true
+    clearTimeout(this.autoUpdateTimer)
+    this.autoUpdateTimer = null
   }
 
   /** 在插件目录（或仓库根）执行命令 */

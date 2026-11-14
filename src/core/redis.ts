@@ -18,6 +18,28 @@ class MemoryRedis {
   isOpen = true
   isReady = true
   process: any = undefined
+  private expiryCursor?: IterableIterator<[string, Entry]>
+  private expiryTimer: ReturnType<typeof setInterval>
+
+  constructor() {
+    this.expiryTimer = setInterval(() => this.sweepExpired(), 1000)
+    this.expiryTimer.unref()
+  }
+
+  private sweepExpired() {
+    this.expiryCursor ??= this.store.entries()
+    const now = Date.now()
+    // 分批扫描，避免大量缓存的过期回收阻塞消息处理。
+    for (let i = 0; i < 1000; i++) {
+      const next = this.expiryCursor.next()
+      if (next.done) {
+        this.expiryCursor = undefined
+        break
+      }
+      const [key, entry] = next.value
+      if (entry.expireAt !== undefined && entry.expireAt <= now) this.store.delete(key)
+    }
+  }
 
   private alive(key: string): Entry | undefined {
     const entry = this.store.get(key)
@@ -331,6 +353,7 @@ class MemoryRedis {
   }
   async flushAll() {
     this.store.clear()
+    this.expiryCursor = undefined
     return 'OK'
   }
   async sendCommand(args: any[]) {
@@ -373,11 +396,14 @@ class MemoryRedis {
     return this
   }
   async quit() {
-    this.isOpen = false
+    await this.disconnect()
     return 'OK'
   }
   async disconnect() {
+    clearInterval(this.expiryTimer)
+    this.expiryCursor = undefined
     this.isOpen = false
+    this.isReady = false
     return undefined
   }
 }

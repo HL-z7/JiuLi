@@ -10,7 +10,7 @@
  *
  * 2. 代码注入：globalThis.__jiuli_mock_emit(event)
  *
- * 机器人发出的消息记录在 globalThis.__jiuli_mock_sent（数组）
+ * globalThis.__jiuli_mock_sent 仅保留最近的调试记录（限量、限体积并定期过期）。
  */
 
 import fs from 'node:fs'
@@ -21,6 +21,53 @@ globalThis.__jiuli_mock_sent = SENT
 /** 撤回记录 */
 const RECALL = []
 globalThis.__jiuli_mock_recall = RECALL
+
+const RECORD_LIMIT = 100
+const RECORD_BYTES = 8 * 1024 * 1024
+const RECORD_TTL = 60_000
+const recordSizes = new WeakMap()
+let recordTimer
+let messageSequence = 0
+
+function recordSize(value, seen = new WeakSet()) {
+  if (typeof value === 'string') return Buffer.byteLength(value)
+  if (!value || typeof value !== 'object') return 8
+  if (seen.has(value)) return 0
+  seen.add(value)
+  if (ArrayBuffer.isView(value)) return value.buffer.byteLength
+  if (value instanceof ArrayBuffer) return value.byteLength
+  let size = 64
+  for (const key of Object.keys(value)) {
+    size += Buffer.byteLength(key) + recordSize(value[key], seen)
+    if (size > RECORD_BYTES) break
+  }
+  return size
+}
+
+function retainRecord(list, record) {
+  const bytes = recordSize(record)
+  // 调试记录不保留超大媒体，但发送结果仍原样返回。
+  if (bytes > RECORD_BYTES) return
+  recordSizes.set(record, bytes)
+  list.push(record)
+  let total = list.reduce((sum, item) => sum + (recordSizes.get(item) || 0), 0)
+  while (list.length > RECORD_LIMIT || total > RECORD_BYTES) {
+    total -= recordSizes.get(list.shift()) || 0
+  }
+  if (!recordTimer) {
+    recordTimer = setInterval(() => {
+      const cutoff = Date.now() - RECORD_TTL
+      for (const records of [SENT, RECALL]) {
+        while (records.length && records[0].at <= cutoff) records.shift()
+      }
+      if (!SENT.length && !RECALL.length) {
+        clearInterval(recordTimer)
+        recordTimer = undefined
+      }
+    }, RECORD_TTL)
+    recordTimer.unref()
+  }
+}
 
 const UIN = 'mock'
 
@@ -56,14 +103,14 @@ function makeContact(type, id) {
   const contact = {
     sendMsg(msg, ...args) {
       const record = { type, id, msg, at: Date.now() }
-      SENT.push(record)
+      retainRecord(SENT, record)
       /** 内容由内核的「发 ▶」日志统一输出，这里仅在 debug 下补充原始结构 */
       Bot.makeLog('debug', `${type}:${id} · ${Bot.describeMsg ? Bot.describeMsg(msg) : typeof msg}`, 'Mock')
       /** 与云崽生态适配器一致：成功时 error 为空数组（内核不应据此判定失败） */
-      return { message_id: `mock-${Date.now()}-${SENT.length}`, error: [], ...record }
+      return { message_id: `mock-${Date.now()}-${++messageSequence}`, error: [], ...record }
     },
     recallMsg(message_id) {
-      RECALL.push({ type, id, message_id, at: Date.now() })
+      retainRecord(RECALL, { type, id, message_id, at: Date.now() })
       Bot.makeLog('mark', `撤回 [${type}:${id}] ${message_id}`, 'Mock')
       return true
     },

@@ -121,7 +121,7 @@ class PluginsLoader {
   /** 加载阶段是否已结束（用于判断插件是否"迟到就绪"） */
   loaded = false
   /** 插件 init 实例，卸载时用于回调 onUnload */
-  private initInstances = new Map<string, any>()
+  private initInstances = new Map<string, Set<any>>()
   groupCD: Record<string, boolean> = {}
   singleCD: Record<string, boolean> = {}
   /** 消息去重（1s） */
@@ -204,7 +204,7 @@ class PluginsLoader {
   /** isRefresh 时先卸载再加载 */
   async load(isRefresh = false) {
     if (isRefresh) {
-      const keys = new Set([...this.priority.map(i => i.key), ...this.taskMap.keys(), ...this.pluginCountMap.keys()])
+      const keys = new Set([...this.priority.map(i => i.key), ...this.taskMap.keys(), ...this.pluginCountMap.keys(), ...this.initInstances.keys()])
       for (const key of keys) await this.unloadPlugin(key)
       /** 整目录刷新：代数 +1，所有插件的模块图都换新 */
       bumpModuleGeneration()
@@ -617,21 +617,25 @@ class PluginsLoader {
          */
         const seen = new Set<any>()
         const pluginArray: any[] = []
-        for (const key in app) {
-          const item = app[key]
-          if (seen.has(item)) continue
-          seen.add(item)
-          pluginArray.push(this.loadPlugin(file, item))
-        }
-        for (const i of await Promise.allSettled(pluginArray))
-          if (i?.status && i.status !== 'fulfilled') {
-            success = false
-            failReason ||= i.reason
-            const info = this.describeLoadError(i.reason, file)
-            util.makeLog('error', info.text, 'Plugin')
-            util.makeLog('debug', [`${file.name} 加载失败详情`, i.reason], 'Plugin')
-            if (packageErr && info.pkg) packageErr.push({ error: i.reason, file })
+        try {
+          for (const key in app) {
+            const item = app[key]
+            if (seen.has(item)) continue
+            seen.add(item)
+            pluginArray.push(this.loadPlugin(file, item))
           }
+        } finally {
+          // 等所有 init 收尾后再清理，避免资源在卸载后才创建。
+          for (const i of await Promise.allSettled(pluginArray))
+            if (i.status === 'rejected') {
+              success = false
+              failReason ||= i.reason
+              const info = this.describeLoadError(i.reason, file)
+              util.makeLog('error', info.text, 'Plugin')
+              util.makeLog('debug', [`${file.name} 加载失败详情`, i.reason], 'Plugin')
+              if (packageErr && info.pkg) packageErr.push({ error: i.reason, file })
+            }
+        }
       })
       /**
        * genshin 导入成功 → 允许框架去 import 它的模型（用户 / ck），此时都是缓存命中。
@@ -661,7 +665,10 @@ class PluginsLoader {
        * 加载失败的**不能**记为惰性，否则修好后 #重载 会一直跳过它。
        */
       if (success && !this.pluginCountMap.get(file.name)) this.inertFiles.add(file.name)
-      else if (!success) this.inertFiles.delete(file.name)
+      else if (!success) {
+        this.inertFiles.delete(file.name)
+        await this.unloadPlugin(file.name)
+      }
     }
     this.load_time[file.name] = Date.now() - start_time
     /**
@@ -682,9 +689,11 @@ class PluginsLoader {
     this.pluginCountMap.set(file.name, (this.pluginCountMap.get(file.name) ?? 0) + 1)
 
     const init = new p()
+    const instances = this.initInstances.get(file.name) ?? new Set<any>()
+    this.initInstances.set(file.name, instances)
+    instances.add(init)
     /** 插件目录名，渲染/数据目录定位用 */
     init.__key = String(file.name).split('/')[0]
-    this.initInstances.set(file.name, init)
     util.makeLog('debug', `加载插件 [${file.name}][${init.name}]`, 'Plugin')
     /** init() 返回 "return" 表示跳过加载 */
     if (init.init && (await init.init()) === 'return') return
@@ -1573,15 +1582,16 @@ class PluginsLoader {
 
   async unloadPlugin(key: string, closeWatcher = false) {
     /** 插件的清理回调（定时器、连接等） */
-    const initInstance = this.initInstances.get(key)
-    if (typeof initInstance?.onUnload === 'function')
+    const instances = this.initInstances.get(key)
+    this.initInstances.delete(key)
+    for (const instance of instances ?? []) {
       try {
-        await initInstance.onUnload()
+        if (typeof instance.onUnload === 'function') await instance.onUnload()
       } catch (err) {
         util.makeLog('error', util.describeError(err, `onUnload 出错 ${logger.green.bold(key)}`, '清理资源的代码有问题；热重载仍会继续'), 'Plugin')
         util.makeLog('debug', [`${key} onUnload 堆栈`, err], 'Plugin')
       }
-    this.initInstances.delete(key)
+    }
 
     /** 清理插件注册的 express 路由与 WS 路径（热重载不重复注册） */
     ;(globalThis as any).Bot?.cleanupPluginResources?.(key)
@@ -1618,11 +1628,8 @@ class PluginsLoader {
   }
 
   async changePlugin(key: string) {
-    const oldPriority = this.priority.filter(i => i.key === key)
-    const oldTasks = this.taskMap.get(key)
-    const oldPluginFileCount = this.pluginCountMap.get(key)
+    const oldClasses = [...(this.initInstances.get(key) ?? [])].map(instance => instance.constructor)
     const oldLoadTime = this.load_time[key]
-    const oldPluginCount = this.pluginCount
     try {
       await this.unloadPlugin(key)
       /**
@@ -1641,22 +1648,28 @@ class PluginsLoader {
         })
       } catch (err) {
         failReload(err)
-        throw err
+        util.makeLog('error', this.describeLoadError(err, { name: key }).text, 'Plugin')
+        util.makeLog('debug', [`${key} 重载失败详情`, err], 'Plugin')
+        success = false
       } finally {
         endReload()
       }
       if (!success) {
         await this.unloadPlugin(key)
-        this.priority.push(...oldPriority)
-        if (oldTasks) {
-          const tasks = [...oldTasks]
-          this.task.push(...tasks)
-          this.taskMap.set(key, new Set(tasks))
+        try {
+          // 旧实例已卸载，必须重建 init 资源，不能恢复绑定旧实例的任务闭包。
+          await runAsLoading(key, async () => {
+            const results = await Promise.allSettled(oldClasses.map(p =>
+              this.loadPlugin({ name: key, path: `../../${this.dir}/${target}` }, p),
+            ))
+            const failed = results.find(result => result.status === 'rejected')
+            if (failed?.status === 'rejected') throw failed.reason
+          })
+          if (oldLoadTime !== undefined) this.load_time[key] = oldLoadTime
+        } catch (err) {
+          await this.unloadPlugin(key)
+          util.makeLog('error', [`旧版本插件重新初始化失败 ${key}`, err], 'Plugin')
         }
-        if (oldLoadTime !== undefined) this.load_time[key] = oldLoadTime
-        this.pluginCount = oldPluginCount
-        if (oldPluginFileCount !== undefined) this.pluginCountMap.set(key, oldPluginFileCount)
-        for (const i of oldPriority) this.registerHandlers(i.plugin, i.namespace || key)
       }
       this.sortPriority()
       this.buildEventIndex()
@@ -1779,9 +1792,14 @@ class PluginsLoader {
     let success: boolean
     try {
       success = await this.importPlugin({ name: key, path: `../../${this.dir}/${target}?${Date.now()}` })
+    } catch (err) {
+      failReload(err)
+      util.makeLog('error', this.describeLoadError(err, { name: key }).text, 'Plugin')
+      success = false
     } finally {
       endReload()
     }
+    if (!success) await this.unloadPlugin(key)
     this.sortPriority()
     this.buildEventIndex()
     this.createTask()

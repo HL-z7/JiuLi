@@ -50,6 +50,45 @@ class FileWriter {
   private seq = new Map<string, number>()
   /** 已切到同步追加的文件：切了之后不再走流，避免同一批数据被写两次 */
   synced = new Set<string>()
+  private activeFiles = new Set<string>()
+
+  rotate(dir: string, day: string) {
+    if (!writeFile) return
+    const main = path.join(dir, `jiuli.${day}.log`)
+    if (this.activeFiles.has(main)) return
+    this.activeFiles = new Set([
+      main,
+      path.join(dir, `command.${day}.log`),
+      path.join(dir, 'error.log'),
+      path.join(dir, 'error', `error.${day}.log`),
+    ])
+    for (const [file, stream] of this.streams) {
+      if (!this.activeFiles.has(file) && !stream.writableEnded) stream.end()
+    }
+    for (const file of this.synced) {
+      if (!this.activeFiles.has(file) && !this.streams.has(file) && !this.pending.get(file)?.length) {
+        this.synced.delete(file)
+        this.pending.delete(file)
+        this.pendingBytes.delete(file)
+        this.seq.delete(file)
+      }
+    }
+  }
+
+  private release(file: string, stream: fs.WriteStream) {
+    if (this.streams.get(file) === stream) this.streams.delete(file)
+    this.cleanupRetired(file)
+  }
+
+  /** 已轮转掉的日文件：流关闭 + pending 清空后把整套簿记一起释放 */
+  private cleanupRetired(file: string) {
+    if (this.streams.has(file) || this.activeFiles.has(file)) return
+    if (this.pending.get(file)?.length) return
+    this.pending.delete(file)
+    this.pendingBytes.delete(file)
+    this.seq.delete(file)
+    this.synced.delete(file)
+  }
 
   /** 单文件待补写上限：超出丢最旧的（这些行早已交给流，正常运行不受影响） */
   private static MAX_PENDING_BYTES = 512 * 1024
@@ -65,10 +104,12 @@ class FileWriter {
         return
       }
       let stream = this.streams.get(file)
-      if (!stream) {
+      if (!stream || stream.writableEnded || stream.destroyed) {
         fs.mkdirSync(path.dirname(file), { recursive: true })
         stream = fs.createWriteStream(file, { flags: 'a' })
+        const opened = stream
         stream.on('error', () => {})
+        stream.once('close', () => this.release(file, opened))
         this.streams.set(file, stream)
       }
       if (stream.writableLength > FileWriter.MAX_STREAM_BUFFER) return
@@ -85,12 +126,13 @@ class FileWriter {
       }
       this.pendingBytes.set(file, bytes)
 
-      stream.write(line, () => {
+      stream.write(line, err => {
         const list = this.pending.get(file)
-        if (!list?.length) return
-        let removed = 0
-        while (list.length && list[0].id <= id) removed += list.shift()!.line.length
-        if (removed) this.pendingBytes.set(file, Math.max(0, (this.pendingBytes.get(file) || 0) - removed))
+        if (err || list !== queue || !list?.length) return
+        const index = list.findIndex(entry => entry.id === id)
+        if (index < 0) return
+        const [removed] = list.splice(index, 1)
+        this.pendingBytes.set(file, Math.max(0, (this.pendingBytes.get(file) || 0) - removed.line.length))
       })
     } catch {
       /* 日志写入失败不影响运行 */
@@ -130,6 +172,7 @@ class FileWriter {
           stream.end()
         } catch {}
       }
+      this.cleanupRetired(file)
     }
   }
 
@@ -137,6 +180,12 @@ class FileWriter {
     this.flushSync()
     for (const stream of this.streams.values()) stream.end()
     this.streams.clear()
+    // 关闭后不再写：把按文件累积的簿记一并释放，重新开启时从干净状态开始
+    this.pending.clear()
+    this.pendingBytes.clear()
+    this.seq.clear()
+    this.synced.clear()
+    this.activeFiles.clear()
   }
 }
 
@@ -279,6 +328,7 @@ function output(level: string, args: any[], id?: string | false, raw = false) {
 
     const line = `${stripColor(msg)}\n`
     const day = dateStr()
+    fileWriter.rotate(logDir, day)
     fileWriter.write(path.join(logDir, `jiuli.${day}.log`), line)
     /** 云崽的日志文件名，插件会直接读这两个文件（如按指令/错误列日志） */
     if (sizeOf(lvl) === 'command') fileWriter.write(path.join(logDir, `command.${day}.log`), line)
