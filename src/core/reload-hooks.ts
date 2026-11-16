@@ -9,8 +9,13 @@
  * 实测：给 lib/panel.js 里的标题加个标记，重载后指令输出里没有标记。
  *
  * 这里用 Node 的同步模块钩子（`module.registerHooks`，v22.15 / v23.5 起）在解析阶段
- * 给「plugins/ 下的文件」统一追加查询参数 `?jiuli_reload=<代数>`：
- * 每次重载把代数 +1，整张插件模块图就会以全新的 URL 重新求值（嵌套的也换）。
+ * 给「plugins/ 下的插件文件」追加查询参数 `?jiuli_reload=<该插件的代数>`：
+ * 重载某个插件只把它的代数 +1，它自己的整张模块图以全新 URL 重新求值（嵌套的也换），
+ * 其他插件仍解析到原来的模块实例。
+ *
+ * 代数必须按插件隔离：用全局代数时，重载任意插件都会让所有插件的模块换新 URL，
+ * 而只有被重载的那个会重新执行初始化 —— 其他插件运行时 `await import(...)` 会拿到
+ * 一份没执行过初始化副作用的空模块（例如注册表变空、协议接口找不到）。
  * 而框架自身、根 node_modules、以及插件自带的 node_modules **不加**这个参数 ——
  * 那些是多个插件共享的依赖，重复求值等于把依赖实例也复制一份（有的包在顶层建连接、
  * 起定时器），既慢又容易出怪问题。
@@ -25,10 +30,16 @@ import * as nodeModule from 'node:module'
 /** 查询参数名。插件自己带 query 时不会冲突（用独立的键名） */
 const STAMP = 'jiuli_reload'
 
-/** 当前代数：重载前 +1，于是「解析出的插件文件 URL」全部换新 */
-let generation = 0
 /** plugins 目录的 file:// 前缀（带尾斜杠），只给这个前缀下的文件加参数 */
 let prefix = ''
+/** plugins 目录的绝对路径，用于把插件 key 还原成模块归属前缀 */
+let pluginDirAbs = ''
+/** 插件 key → 该插件拥有的模块 URL 前缀；目录插件带尾斜杠，单文件插件是精确 URL */
+const roots = new Map<string, string>()
+/** 插件 key → 模块图代数：只有该插件被重载时才 +1 */
+const generations = new Map<string, number>()
+/** 去掉 query/hash 的模块 URL → 归属插件 key，避免每次 resolve 都遍历全部插件 */
+const ownerCache = new Map<string, string | null>()
 let registered = false
 
 /** 同步模块钩子；Node < 22.15 上没有，此时退回老行为 */
@@ -45,7 +56,8 @@ export function supportsModuleReload(): boolean {
  * @returns 是否支持整图重载（false 表示只能重载入口，调用方应记一行提示）
  */
 export function enableModuleReload(pluginDir: string): boolean {
-  prefix = pathToFileURL(path.resolve(pluginDir)).href.replace(/\/+$/, '') + '/'
+  pluginDirAbs = path.resolve(pluginDir)
+  prefix = pathToFileURL(pluginDirAbs).href.replace(/\/+$/, '') + '/'
   if (registered || typeof registerHooks !== 'function') return supportsModuleReload()
   registerHooks({
     resolve(specifier: string, context: any, nextResolve: (s: string, c: any) => any) {
@@ -57,23 +69,75 @@ export function enableModuleReload(pluginDir: string): boolean {
 }
 
 /**
- * 给插件目录下的模块 URL 打上当前代数。
- *
- * 判定顺序：先看协议与前缀（框架与依赖直接放过，成本最低），再看是不是插件自带的
- * node_modules，最后避免重复打标（同一个 URL 在模块图里被多次 import 时保持一致）。
+ * 登记插件 key 对应的模块归属范围（导入插件前调用）。
+ * 目录型插件（`foo`）覆盖 `plugins/foo/` 下全部模块；单文件插件（`system/x.js`）只覆盖该文件。
+ */
+export function registerPluginRoot(key: string) {
+  if (!pluginDirAbs) return
+  const url = pathToFileURL(path.resolve(pluginDirAbs, key)).href
+  roots.set(key, key.endsWith('.js') ? url : `${url.replace(/\/+$/, '')}/`)
+  ownerCache.clear()
+}
+
+/** 模块 URL 归属哪个插件的模块图；未登记的 plugins/ 模块视为共享代码，不加戳 */
+function ownerOf(url: string) {
+  const base = url.split(/[?#]/)[0]
+  if (ownerCache.has(base)) return ownerCache.get(base) ?? undefined
+  let owner: string | undefined
+  let length = -1
+  for (const [key, root] of roots) {
+    const hit = root.endsWith('/') ? base.startsWith(root) : base === root
+    if (hit && root.length > length) {
+      owner = key
+      length = root.length
+    }
+  }
+  ownerCache.set(base, owner ?? null)
+  return owner
+}
+
+/**
+ * 给插件模块 URL 打上「它所属插件」的代数。
+ * 未被重载的插件代数不变，运行时动态 import 仍命中原来的模块实例。
  */
 function stamp(result: any) {
   const url: string | undefined = result?.url
   if (!url || !url.startsWith(prefix) || url.includes('/node_modules/')) return result
-  const parsed = new URL(url)
-  if (parsed.searchParams.has(STAMP)) return result
+  const owner = ownerOf(url)
+  if (!owner) return result
+  const generation = generations.get(owner) ?? 0
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return result
+  }
+  if (!generation) {
+    if (!parsed.searchParams.has(STAMP)) return result
+    parsed.searchParams.delete(STAMP)
+    return { ...result, url: parsed.href }
+  }
+  if (parsed.searchParams.get(STAMP) === String(generation)) return result
   parsed.searchParams.set(STAMP, String(generation))
   return { ...result, url: parsed.href }
 }
 
 // 新 URL 使插件重新求值，但 Node 的 ESM 缓存不会随卸载释放旧模块记录。
-export function bumpModuleGeneration(): void {
-  generation++
+// 传 key 只换该插件的模块图；不传表示整目录刷新，所有已登记插件都换新。
+// 每次 bump 用全局递增的唯一年代号，重载失败判定才能把「这次重载」和旧模块区分开。
+let sequence = 0
+let lastBump = 0
+export function bumpModuleGeneration(key?: string): void {
+  const stamp = ++sequence
+  lastBump = stamp
+  if (key) {
+    generations.set(key, stamp)
+    /** 归属缓存只服务当前模块图；重载后旧路径不会再被解析，顺手释放 */
+    for (const [base, owner] of ownerCache) if (owner === key) ownerCache.delete(base)
+    return
+  }
+  for (const k of roots.keys()) generations.set(k, stamp)
+  ownerCache.clear()
 }
 
 /* ==================== 重载求值失败 → 整机重启恢复 ==================== */
@@ -92,6 +156,8 @@ export function bumpModuleGeneration(): void {
  * 顺序回到冷启动那份。所以这里识别这类错误并触发一次重启，同时用冷却避免真坏时重试风暴。
  */
 let reloadDepth = 0
+/** 最近几次重载的年代号：只用于判定错误是否来自本次重载，留最近 200 次足够 */
+const MAX_RELOAD_STAMPS = 200
 const reloadGenerations = new Set<number>()
 let reloadFailed = false
 let lastCrashAt = 0
@@ -103,7 +169,14 @@ export function beginReload(): void {
 
 export function endReload(): void {
   if (reloadDepth > 0) reloadDepth--
-  if (reloadDepth === 0) reloadGenerations.add(generation)
+  /** 本次重载刚生成的年代号；模块 URL 里带它才算「这次重载求值出来的」 */
+  if (reloadDepth === 0 && lastBump) {
+    reloadGenerations.add(lastBump)
+    while (reloadGenerations.size > MAX_RELOAD_STAMPS) {
+      const oldest = reloadGenerations.values().next().value as number
+      reloadGenerations.delete(oldest)
+    }
+  }
 }
 
 export function isReloading(): boolean {

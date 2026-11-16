@@ -15,7 +15,7 @@ import util from './util.js'
 import { logger } from './log.js'
 import metrics from './metrics.js'
 import { runAsLoading } from './loading.js'
-import { beginReload, bumpModuleGeneration, enableModuleReload, endReload, failReload, consumeReloadFailure, noteCrash } from './reload-hooks.js'
+import { beginReload, bumpModuleGeneration, enableModuleReload, endReload, failReload, consumeReloadFailure, noteCrash, registerPluginRoot } from './reload-hooks.js'
 import type { JiuLiEvent, PluginEntry } from './types.js'
 
 /** 兼容旧插件直接使用全局 plugin */
@@ -206,7 +206,7 @@ class PluginsLoader {
     if (isRefresh) {
       const keys = new Set([...this.priority.map(i => i.key), ...this.taskMap.keys(), ...this.pluginCountMap.keys(), ...this.initInstances.keys()])
       for (const key of keys) await this.unloadPlugin(key)
-      /** 整目录刷新：代数 +1，所有插件的模块图都换新 */
+      /** 整目录刷新：所有已知插件都换一代，模块图全部重新求值 */
       bumpModuleGeneration()
       /** 手动 #重载 同时解除重载风暴熔断 */
       this.resumeReload()
@@ -599,6 +599,8 @@ class PluginsLoader {
   async importPlugin(file: { name: string; path: string }, packageErr?: any[]) {
     const start_time = Date.now()
     let success = true
+    /** 先登记模块归属，插件图里的相对导入才能归到自己的重载代数下 */
+    registerPluginRoot(file.name)
     /** 求值失败的原因：热重载要据此判断是否属于「求值顺序变了」的失败 */
     let failReason: any
     this.pluginCountMap.set(file.name, 0)
@@ -1633,10 +1635,11 @@ class PluginsLoader {
     try {
       await this.unloadPlugin(key)
       /**
-       * 代数 +1 再导入：入口里 `import './apps/x.js'` 这类嵌套模块会以新 URL 解析，
-       * 整张插件模块图重新求值 —— 不然日志写着「重载」，跑的仍是缓存里的旧代码。
+       * 只给这个插件的代数 +1 再导入：入口里 `import './apps/x.js'` 这类嵌套模块
+       * 会以新 URL 解析，整张插件模块图重新求值 —— 不然日志写着「重载」，跑的仍是
+       * 缓存里的旧代码。其他插件的代数不动，它们的动态 import 不会拿到空模块图。
        */
-      bumpModuleGeneration()
+      bumpModuleGeneration(key)
       /** 目录型插件需指向 index.js，Node 不支持目录 import */
       const target = key.endsWith('.js') ? key : `${key}/index.js`
       beginReload()
@@ -1784,8 +1787,8 @@ class PluginsLoader {
   }
 
   private async loadKey(key: string) {
-    /** 新增/补漏加载也换一代：与磁盘上已改过的文件保持一致 */
-    bumpModuleGeneration()
+    /** 新增/补漏加载只换自己的代数：与磁盘上已改过的文件保持一致 */
+    bumpModuleGeneration(key)
     const target = key.endsWith('.js') ? key : `${key}/index.js`
     /** 同样是「新求值出来的一张图」，求值失败也要能被恢复逻辑认出来 */
     beginReload()
