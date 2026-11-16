@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.9](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.8...jiuli-v4.3.9) (2026-11-16)
+
+
+### 🐛 Bug 修复
+
+* node jiuli m/s 启动前检查端口，插件更新改为原地重启 ([a7eff5a](https://github.com/HL-z7/JiuLi/commit/a7eff5ab3f7c7c0e3fbc8eae5251f4fddf2ce367))
+
 ## [4.3.8](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.7...jiuli-v4.3.8) (2026-11-16)
 
 
