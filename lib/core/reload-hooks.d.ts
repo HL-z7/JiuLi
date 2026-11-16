@@ -6,7 +6,12 @@ export declare function supportsModuleReload(): boolean;
  * @returns 是否支持整图重载（false 表示只能重载入口，调用方应记一行提示）
  */
 export declare function enableModuleReload(pluginDir: string): boolean;
-export declare function bumpModuleGeneration(): void;
+/**
+ * 登记插件 key 对应的模块归属范围（导入插件前调用）。
+ * 目录型插件（`foo`）覆盖 `plugins/foo/` 下全部模块；单文件插件（`system/x.js`）只覆盖该文件。
+ */
+export declare function registerPluginRoot(key: string): void;
+export declare function bumpModuleGeneration(key?: string): void;
 /** 标记重载区间：期间发生的模块求值失败都算「这次重载带来的」 */
 export declare function beginReload(): void;
 export declare function endReload(): void;
