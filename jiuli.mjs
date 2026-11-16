@@ -12,6 +12,7 @@
 import { spawnSync, spawn } from 'node:child_process'
 import { createRequire, builtinModules } from 'node:module'
 import fs from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
 import { applyTune, hasTuneBackup, readNumber, readTune, revertTune, TUNE_DEFAULTS } from './lib/tune.js'
@@ -52,6 +53,43 @@ function spawnCmd(bin, args = [], opts = {}) {
     return spawnSync(line, { shell: true, ...opts })
   }
   return spawnSync(bin, args, opts)
+}
+
+/** 监听端口：优先读 config/config/server.yaml，读不到回退 1721 */
+function serverPort() {
+  try {
+    const text = fs.readFileSync(path.join(CWD, 'config', 'config', 'server.yaml'), 'utf8')
+    const m = /^port:\s*(\d+)/m.exec(text)
+    if (m) return Number(m[1])
+  } catch {}
+  return 1721
+}
+
+/** 本地端口是否已有服务在监听（IPv4 / IPv6 都试一次，连得上就算占用） */
+function portBusy(port) {
+  const probe = host =>
+    new Promise(resolve => {
+      const socket = net.connect({ host, port })
+      const done = busy => {
+        socket.destroy()
+        resolve(busy)
+      }
+      socket.setTimeout(500)
+      socket.once('connect', () => done(true))
+      socket.once('timeout', () => done(false))
+      socket.once('error', () => done(false))
+    })
+  return probe('127.0.0.1').then(busy => busy || probe('::1'))
+}
+
+/** 端口被占用的统一提示：不重复起实例，并给出查进程的方法 */
+function portBusyHint(port) {
+  return [
+    `端口 ${port} 已被占用：已经有一个 JiuLi（或其它程序）在运行，本次不再重复启动。`,
+    `  查占用：Linux  ss -ltnp | grep :${port}    Windows  netstat -ano | findstr :${port}`,
+    '  已有实例：QQ 里发 #重启；或 node jiuli attach 接回；pm2 实例用 node jiuli stop',
+    '  插件更新后的自动重启会另起后台实例，更新完请用框架的 #重启',
+  ].join('\n')
 }
 
 function hasPm2() {
@@ -142,7 +180,7 @@ function installHint() {
 }
 
 /** 进入 tmux 会话跑起来：已存在则接管，不存在则新建并启动 */
-function cmdSession(args = []) {
+async function cmdSession(args = []) {
   const appArgs = args.filter(a => !a.startsWith('-'))
 
   /** 与 start 一致的前置：依赖 / 内核编译 / 配置都得先就绪（新克隆的机器上 lib/core 还是空的） */
@@ -151,6 +189,15 @@ function cmdSession(args = []) {
   ensureConfig()
   applyNodeOptions()
 
+  const tmux = hasCmd('tmux')
+  const existingTmux = tmux && spawnSync('tmux', ['has-session', '-t', SESSION], { stdio: 'ignore' }).status === 0
+  const existingScreen =
+    !tmux &&
+    hasCmd('screen') &&
+    String(spawnSync('screen -ls', { shell: true, encoding: 'utf8' }).stdout || '').includes(`.${SESSION}`)
+  /** 接管已有会话不会新起进程；只有要新建/直接启动时才检查端口 */
+  if (!existingTmux && !existingScreen && (await portBusy(serverPort()))) fail(portBusyHint(serverPort()))
+
   /** 已经身处 tmux / screen 里就不用再套一层，直接跑（screen 用 STY 标识） */
   if (process.env.TMUX || process.env.STY) {
     const which = process.env.TMUX ? 'tmux' : 'screen'
@@ -158,7 +205,7 @@ function cmdSession(args = []) {
     return run(process.execPath, [path.join(CWD, 'app.js'), ...appArgs])
   }
 
-  if (hasCmd('tmux')) {
+  if (tmux) {
     /** 用登录 shell 起，nvm / nodenv 装的 node 也能找到；退出后留一个 shell 便于翻日志、就地重启 */
     const shell =
       process.env.SHELL && fs.existsSync(process.env.SHELL) ? process.env.SHELL : '/bin/sh'
@@ -339,7 +386,7 @@ function cmdInit() {
   ok('初始化完成。启动：node jiuli.mjs start（后台）或 node jiuli.mjs start --fg（前台）')
 }
 
-function cmdStart(args) {
+async function cmdStart(args) {
   const { flags, rest } = parseArgs(args, {
     flags: ['--fg', '-f'],
     usage: '用法：node jiuli s [--fg]',
@@ -350,6 +397,30 @@ function cmdStart(args) {
   ensureBuild()
   ensureConfig()
   applyNodeOptions()
+
+  /** 已有实例在跑时不再另起一份：插件自带的 npm run start 会命中这里 */
+  const port = serverPort()
+  if (await portBusy(port)) {
+    /** 当前实例是 node . / node jiuli m 拉起的守护模式：请求它原地重启，日志仍留在原终端 */
+    const pid = Number(process.env.JIULI_PID)
+    if (process.env.JIULI_CHILD === '1' && pid && process.platform !== 'win32') {
+      try {
+        process.kill(pid, 'SIGUSR2')
+      } catch (err) {
+        fail(`${portBusyHint(port)}\n  请求原地重启失败：${err?.message || err}`)
+      }
+      info(`已请求当前实例（PID ${pid}）原地重启，不会另起后台进程；日志仍在原终端/tmux 会话`)
+      for (let i = 0; i < 50; i++) {
+        await new Promise(r => setTimeout(r, 200))
+        try {
+          process.kill(pid, 0)
+        } catch {
+          return
+        }
+      }
+    }
+    fail(portBusyHint(port))
+  }
 
   if (fg) {
     info('前台启动（Ctrl+C 退出）…')

@@ -64,6 +64,17 @@ export async function start() {
   const { default: JiuLiBot } = await import('./bot.js')
   const bot = new JiuLiBot() as any
   await injectGlobals(bot)
+  /** 子进程 PID 写进环境变量：插件更新脚本（npm run start）据此请求原地重启 */
+  process.env.JIULI_PID = String(process.pid)
+  if (process.platform !== 'win32' && process.env.JIULI_CHILD === '1') {
+    let restarting = false
+    process.on('SIGUSR2', () => {
+      if (restarting) return
+      restarting = true
+      bot.makeLog('mark', '收到原地重启请求（插件更新），正在重启…', 'Restart')
+      Promise.resolve(bot.restart?.()).catch(() => process.exit(RESTART_CODE))
+    })
+  }
 
   bot.makeLog('mark', '──────── 启动中 ────────', 'JiuLi')
   bot.makeLog(

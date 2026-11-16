@@ -706,7 +706,9 @@ ${stage}`
     if (https) return
     util.makeLog(
       'error',
-      `端口 ${port} 已被占用。请先停掉占用的实例（同一个目录重复启动最常见），或改 config/config/server.yaml → server.port 后重启；守护进程会自动重试几次，仍起不来就停下`,
+      `端口 ${port} 已被占用。请先停掉占用的实例（同一个目录重复启动最常见），或改 config/config/server.yaml → server.port 后重启。\n` +
+        `        查占用：Linux  ss -ltnp | grep :${port}    Windows  netstat -ano | findstr :${port}\n` +
+        `        已有实例时用 QQ 里的 #重启，或 node jiuli attach；插件更新后的自动重启会另起后台实例，更新完请用框架的 #重启`,
       'Server',
     )
     /**
