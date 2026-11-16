@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.8](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.7...jiuli-v4.3.8) (2026-11-16)
+
+
+### 🐛 Bug 修复
+
+* 热重载代数按插件隔离（避免其他插件动态导入拿到未初始化的新模块） ([347b4d7](https://github.com/HL-z7/JiuLi/commit/347b4d75de83472bcd349949477b72bf3e9a7c23))
+
 ## [4.3.7](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.6...jiuli-v4.3.7) (2026-11-14)
 
 
