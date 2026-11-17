@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.10](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.9...jiuli-v4.3.10) (2026-11-17)
+
+
+### 🐛 Bug 修复
+
+* 内存降级补齐 zset 命令与命令别名 ([74a86f9](https://github.com/HL-z7/JiuLi/commit/74a86f9b23e2e711f4897968cd5b340654c370ed))
+
 ## [4.3.9](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.8...jiuli-v4.3.9) (2026-11-16)
 
 
