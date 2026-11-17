@@ -60,6 +60,16 @@ declare class MemoryRedis {
     zRem(key: string, members: string | string[]): Promise<number>;
     zRemRangeByScore(key: string, min: number | string, max: number | string): Promise<number>;
     zCard(key: string): Promise<any>;
+    /** zset 快照：按 score 升序，同分按成员字典序；键不存在或类型不符返回空数组 */
+    private zsetEntries;
+    private scoreBounds;
+    zCount(key: string, min: number | string, max: number | string): Promise<number>;
+    /** opts 与 node-redis v4 一致：{ LIMIT: { offset, count } } */
+    zRangeByScoreWithScores(key: string, min: number | string, max: number | string, opts?: any): Promise<{
+        value: string;
+        score: number;
+    }[]>;
+    zRangeByScore(key: string, min: number | string, max: number | string, opts?: any): Promise<string[]>;
     zScore(key: string, member: string): Promise<any>;
     zRank(key: string, member: string): Promise<number | null>;
     zRevRank(key: string, member: string): Promise<number | null>;
@@ -81,6 +91,11 @@ declare class MemoryRedis {
     quit(): Promise<string>;
     disconnect(): Promise<undefined>;
 }
+/**
+ * 插件大多直接调 redis.xxx()，缺方法时抛 TypeError 会中断整条业务链路；
+ * 这里用 Proxy 兜住所有未实现的命令，交给 unsupported() 返回 null 并只告警一次。
+ */
+export declare function memoryRedis(): any;
 /** ============ 真实客户端封装（兼容 TRSS 的 Redis 类行为） ============ */
 export declare class Redis {
     opts: any;
