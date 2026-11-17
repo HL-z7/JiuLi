@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.11](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.10...jiuli-v4.3.11) (2026-11-17)
+
+
+### 🐛 Bug 修复
+
+* 更新前丢弃 package.json 与 pnpm-workspace.yaml 的本地改动 ([7cb3665](https://github.com/HL-z7/JiuLi/commit/7cb36653422700b0f1a14fb3f4aced8122009e2c))
+
 ## [4.3.10](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.9...jiuli-v4.3.10) (2026-11-17)
 
 
