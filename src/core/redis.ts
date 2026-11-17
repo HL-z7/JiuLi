@@ -294,6 +294,40 @@ class MemoryRedis {
     const entry = this.alive(key)
     return entry?.type === 'zset' ? entry.value.size : 0
   }
+
+  /** zset 快照：按 score 升序，同分按成员字典序；键不存在或类型不符返回空数组 */
+  private zsetEntries(key: string): [string, number][] {
+    const entry = this.alive(key)
+    if (entry?.type !== 'zset') return []
+    return [...entry.value.entries()].sort((a, b) => a[1] - b[1] || String(a[0]).localeCompare(String(b[0])))
+  }
+
+  private scoreBounds(min: number | string, max: number | string): [number, number] {
+    return [min === '-inf' ? -Infinity : Number(min), max === '+inf' ? Infinity : Number(max)]
+  }
+
+  async zCount(key: string, min: number | string, max: number | string) {
+    const [lower, upper] = this.scoreBounds(min, max)
+    return this.zsetEntries(key).filter(([, score]) => score >= lower && score <= upper).length
+  }
+
+  /** opts 与 node-redis v4 一致：{ LIMIT: { offset, count } } */
+  async zRangeByScoreWithScores(key: string, min: number | string, max: number | string, opts: any = {}) {
+    const [lower, upper] = this.scoreBounds(min, max)
+    const limit = opts.LIMIT ?? opts.limit
+    const offset = Number(limit?.offset ?? limit?.OFFSET ?? 0)
+    const count = limit ? Number(limit.count ?? limit.COUNT ?? Infinity) : Infinity
+    return this.zsetEntries(key)
+      .filter(([, score]) => score >= lower && score <= upper)
+      .slice(offset, offset + count)
+      .map(([value, score]) => ({ value, score }))
+  }
+
+  async zRangeByScore(key: string, min: number | string, max: number | string, opts: any = {}) {
+    const list = await this.zRangeByScoreWithScores(key, min, max, opts)
+    return list.map(item => item.value)
+  }
+
   async zScore(key: string, member: string) {
     const entry = this.alive(key)
     return entry?.type === 'zset' ? (entry.value.get(String(member)) ?? null) : null
@@ -406,6 +440,32 @@ class MemoryRedis {
     this.isReady = false
     return undefined
   }
+}
+
+/**
+ * 插件大多直接调 redis.xxx()，缺方法时抛 TypeError 会中断整条业务链路；
+ * 这里用 Proxy 兜住所有未实现的命令，交给 unsupported() 返回 null 并只告警一次。
+ */
+export function memoryRedis(): any {
+  const impl = new MemoryRedis()
+  // node-redis v4 同一命令保留 camelCase 与小写/全大写历史别名，插件两种写法都在用
+  // （Mys-plugin 里 zCount、zcount、zadd 混着调）；内存实现只写一份，这里按名称不区分大小写补齐。
+  const aliases = new Map<string, string>()
+  for (let proto = Object.getPrototypeOf(impl); proto && proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name !== 'constructor') aliases.set(name.toLowerCase(), name)
+    }
+  }
+  return new Proxy(impl, {
+    get(target: any, prop: any, receiver: any) {
+      // then 会让 await 把实例当 Promise，必须保留 undefined
+      if (typeof prop !== 'string' || prop === 'then') return undefined
+      const name = prop in target ? prop : aliases.get(prop.toLowerCase())
+      if (!name) return () => target.unsupported(prop)
+      const value = Reflect.get(target, name, receiver)
+      return typeof value === 'function' && name !== 'constructor' ? value.bind(receiver) : value
+    },
+  })
 }
 
 /** ============ 真实客户端封装（兼容 TRSS 的 Redis 类行为） ============ */
@@ -551,7 +611,7 @@ export class Redis {
     /** 反复连不上且允许降级时，换成内存实现，避免一直重试 */
     if (this.errCount >= 3 && (cfg.getCompat().redis_fallback ?? cfg.getAllCfg('jiuli').redis_fallback ?? true)) {
       util.makeLog('warn', 'Redis 多次重连失败，已切换为内存实现（数据重启后丢失）', 'Redis')
-      ;(globalThis as any).redis = new MemoryRedis()
+      ;(globalThis as any).redis = memoryRedis()
       return
     }
     return this.connect()
@@ -562,7 +622,7 @@ export class Redis {
 export async function redisInit(): Promise<any> {
   if (process.env.JIULI_REDIS === 'memory') {
     util.makeLog('warn', 'JIULI_REDIS=memory，使用内存实现', 'Redis')
-    return ((globalThis as any).redis = new MemoryRedis())
+    return ((globalThis as any).redis = memoryRedis())
   }
 
   const rc = cfg.redis
@@ -583,7 +643,7 @@ export async function redisInit(): Promise<any> {
 
   if (cfg.getCompat().redis_fallback ?? cfg.getAllCfg('jiuli').redis_fallback ?? true) {
     util.makeLog('warn', '使用内存降级实现，数据重启后丢失（config/config/jiuli.yaml → redis_fallback）', 'Redis')
-    return ((globalThis as any).redis = new MemoryRedis())
+    return ((globalThis as any).redis = memoryRedis())
   }
 
   util.makeLog('error', '无法连接且未开启内存降级，进程退出', 'Redis')
