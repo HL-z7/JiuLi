@@ -244,6 +244,12 @@ export default class Update extends JiuLiPlugin {
 
     let cmd = 'git pull'
     let type = '更新'
+    /**
+     * 与云崽一致：这两个文件按上游走，本地改过会让 git pull 直接拒绝，用户只能靠
+     * #强制更新 硬重置。更新前先丢弃本地改动。
+     * .npmrc 不在此列 —— 那是用户放私有源与 token 的地方，checkout 等于删配置。
+     */
+    if (!plugin) cmd = `git checkout package.json pnpm-workspace.yaml && ${cmd}`
     if (this.e?.msg?.includes('强制')) {
       type = '强制更新'
       const remoteBranch = await this.getRemoteBranch(true, plugin)
