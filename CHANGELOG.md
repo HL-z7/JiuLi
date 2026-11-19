@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.12](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.11...jiuli-v4.3.12) (2026-11-19)
+
+
+### 🐛 Bug 修复
+
+* 云崽ck兼容层读库失败不再删文件，新增 ck 回写恢复 ([20f4a36](https://github.com/HL-z7/JiuLi/commit/20f4a361abcc0dfa8e17acfb609c2de3c9269c9e))
+
 ## [4.3.11](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.10...jiuli-v4.3.11) (2026-11-17)
 
 
