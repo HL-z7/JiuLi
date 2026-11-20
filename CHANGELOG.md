@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.13](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.12...jiuli-v4.3.13) (2026-11-20)
+
+
+### 🐛 Bug 修复
+
+* Redis 断线后自动重连 ([#38](https://github.com/HL-z7/JiuLi/issues/38)) ([4693cd3](https://github.com/HL-z7/JiuLi/commit/4693cd3362942ab386910561f8f8edb72030f7a3))
+
 ## [4.3.12](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.11...jiuli-v4.3.12) (2026-11-19)
 
 
