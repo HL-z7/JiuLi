@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.14](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.13...jiuli-v4.3.14) (2026-11-20)
+
+
+### 🐛 Bug 修复
+
+* 自动退群只在被好友拉进小群时触发 ([255e273](https://github.com/HL-z7/JiuLi/commit/255e273b17c8eadb962094289812101352798c3c))
+
 ## [4.3.13](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.12...jiuli-v4.3.13) (2026-11-20)
 
 
