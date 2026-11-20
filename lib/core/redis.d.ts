@@ -103,6 +103,8 @@ export declare class Redis {
     err: any;
     lock: boolean;
     exit?: boolean;
+    private hasConnected;
+    private errAt;
     constructor(opts: any, exit?: boolean);
     connect(force?: boolean): Promise<any>;
     /**
@@ -111,10 +113,7 @@ export declare class Redis {
      */
     private installLocal;
     start(): Promise<any>;
-    /** 连续失败次数与上次报错时间：Redis 挂掉时避免每秒刷屏 */
-    private errCount;
-    private errAt;
-    onerror: (err: any) => Promise<any>;
+    onerror: (err: any) => void;
 }
 /** 注入全局 redis */
 export declare function redisInit(): Promise<any>;
