@@ -475,12 +475,28 @@ export class Redis {
   err: any
   lock = false
   exit?: boolean
+  private hasConnected = false
+  private errAt = 0
 
   constructor(opts: any, exit?: boolean) {
     this.opts = opts
     this.exit = exit
-    this.redis = createClient(opts)
+    this.redis = createClient({
+      ...opts,
+      socket: {
+        ...opts.socket,
+        // 首次连接失败时交给 start()；运行时由 node-redis 在原客户端上重连。
+        reconnectStrategy: (retries: number) =>
+          this.hasConnected ? Math.min(250 * 2 ** retries, 5000) : false,
+      },
+    })
     this.redis.class = this
+    this.redis.on('error', this.onerror)
+    this.redis.on('ready', () => {
+      if (this.hasConnected && this.errAt) util.makeLog('mark', 'Redis 连接已恢复', 'Redis')
+      this.hasConnected = true
+      this.errAt = 0
+    })
   }
 
   async connect(force?: boolean) {
@@ -497,18 +513,8 @@ export class Redis {
       return false
     }
 
-    for (let i = 0; i < 5; i++) {
-      try {
-        const id = Date.now().toString(36)
-        if ((await this.redis.ping(id)) === id) break
-      } catch (err) {
-        util.makeLog('error', err, 'Redis')
-      }
-      await util.sleep(1000)
-    }
-
     this.lock = false
-    return this.redis.once('error', this.onerror)
+    return this.redis
   }
 
   /**
@@ -590,31 +596,14 @@ export class Redis {
     return false
   }
 
-  /** 连续失败次数与上次报错时间：Redis 挂掉时避免每秒刷屏 */
-  private errCount = 0
-  private errAt = 0
-
-  onerror = async (err: any) => {
+  onerror = (err: any) => {
+    // 首次连接失败由 connect()/start() 处理。
+    if (!this.hasConnected) return
     const now = Date.now()
-    this.errCount++
-    /** 每 10 秒最多报一次，且带上累计次数 */
     if (now - this.errAt > 10000) {
       this.errAt = now
-      util.makeLog(
-        'error',
-        `连接中断（第 ${this.errCount} 次）：${err?.message || err}\n` +
-          `        Redis 可能已停止；重启前数据操作会失败，插件自建的 Redis 连接也会报错`,
-        'Redis',
-      )
+      util.makeLog('error', `连接中断，正在尝试重连：${err?.message || err}`, 'Redis')
     }
-    await this.redis.disconnect().catch(() => {})
-    /** 反复连不上且允许降级时，换成内存实现，避免一直重试 */
-    if (this.errCount >= 3 && (cfg.getCompat().redis_fallback ?? cfg.getAllCfg('jiuli').redis_fallback ?? true)) {
-      util.makeLog('warn', 'Redis 多次重连失败，已切换为内存实现（数据重启后丢失）', 'Redis')
-      ;(globalThis as any).redis = memoryRedis()
-      return
-    }
-    return this.connect()
   }
 }
 
@@ -632,6 +621,8 @@ export async function redisInit(): Promise<any> {
       username: rc.username || undefined,
       password: rc.password || undefined,
       database: Number(rc.db) || 0,
+      // 断线时让调用及时失败，避免统计与重启指令一直等待、写入队列持续增长。
+      disableOfflineQueue: true,
     },
     false,
   ).connect()
