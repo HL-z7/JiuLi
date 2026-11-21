@@ -263,7 +263,7 @@ export default class Update extends JiuLiPlugin {
     if (!this.quiet) await this.reply(`开始${type} ${this.typeName}`)
 
     const ret = await this.exec(cmd, plugin)
-    if (ret.error && !(await this.gitErr(plugin, ret.stdout, ret.error.message))) {
+    if (ret.error && !(await this.gitErr(plugin, ret))) {
       Bot.makeLog('mark', `${this.e?.logFnc || ''} ${type}失败 ${this.typeName}`, 'Update')
       return false
     }
@@ -309,24 +309,57 @@ export default class Update extends JiuLiPlugin {
     return true
   }
 
+  /**
+   * 列出 git 拒绝覆盖的文件
+   *
+   * git 把清单写在 stderr（`error: Your local changes ... would be overwritten by merge:` 后面
+   * 的制表符缩进行），只看 stdout 就会得到一句"有本地改动"后面跟着空白，用户不知道改的是哪个文件。
+   * 解析不到时退回 `git status --porcelain`。
+   */
+  async localChangeFiles(plugin, ...texts) {
+    const files = new Set()
+    for (const text of texts) {
+      const lines = String(text || '').split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (!/would be overwritten by merge|被合并操作覆盖|会被合并覆盖/i.test(lines[i])) continue
+        /** 清单每行带缩进，遇到不带缩进的行（Please commit… / Aborting）即结束 */
+        for (let j = i + 1; j < lines.length && /^[\t ]+\S/.test(lines[j]); j++) files.add(lines[j].trim())
+      }
+    }
+    if (!files.size) {
+      const ret = await this.exec('git status --porcelain', plugin)
+      for (const line of String(ret.stdout || '').split('\n')) {
+        const file = line.slice(3).trim()
+        if (file) files.add(file)
+      }
+    }
+    return [...files]
+  }
+
   /** 常见 git 错误的解释与下一步建议；返回 true 表示已在内部补救成功 */
-  async gitErr(plugin, stdout, error) {
+  async gitErr(plugin, ret = {}) {
+    const { stdout = '', stderr = '', error: err } = ret || {}
+    const error = String(err?.message || err || '')
     const hint = plugin ? `#强制更新${plugin}` : '#强制更新'
     const url = error.match(/'(.+?)'/g)?.[0]?.replace(/'/g, '') || ''
     if (/unable to access|无法访问|Could not resolve|连接超时|Failed to connect/i.test(error))
       await this.reply(`远程仓库连接失败：${url || error}\n请检查网络或代理后重试`)
     else if (/not found|未找到|does not (exist|appear)|不存在|Authentication failed|鉴权失败/i.test(error))
       await this.reply(`远程仓库地址或凭据有误：${url || error}`)
-    else if (/local changes|本地修改|be overwritten by merge|被合并操作覆盖/i.test(error))
+    else if (/local changes|本地修改|be overwritten by merge|被合并操作覆盖/i.test(error)) {
+      const files = await this.localChangeFiles(plugin, stdout, stderr, error)
+      const shown = files.slice(0, 10).map(f => `· ${f}`)
+      if (files.length > shown.length) shown.push(`· 等共 ${files.length} 个文件`)
       await this.reply(
-        `「${plugin || 'JiuLi'}」有本地改动，git 拒绝覆盖：\n${stdout || ''}\n` +
+        `「${plugin || 'JiuLi'}」有本地改动，git 拒绝覆盖：\n` +
+          `${shown.length ? `${shown.join('\n')}\n` : ''}` +
           `确认不需要这些改动后发送 ${hint} 覆盖更新`,
       )
-    else if (/Merge conflict|合并冲突/i.test(stdout))
+    } else if (/Merge conflict|合并冲突/i.test(stdout))
       await this.reply(`${error}\n${stdout}\n若修改过文件请手动更新，否则发送 ${hint}`)
     else if (/divergent branches|偏离的分支|Need to specify how to reconcile/i.test(error)) {
-      const ret = await this.exec('git pull --rebase', plugin)
-      if (!ret.error && /Successfully rebased|成功变基/i.test(ret.stdout + ret.stderr)) return true
+      const rebase = await this.exec('git pull --rebase', plugin)
+      if (!rebase.error && /Successfully rebased|成功变基/i.test(rebase.stdout + rebase.stderr)) return true
       await this.reply(`${error}\n${stdout}\n可发送 ${hint} 覆盖更新`)
     } else await this.reply(`${error}\n${stdout}\n未知错误，可尝试发送 ${hint}`)
     return false
