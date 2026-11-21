@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.15](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.14...jiuli-v4.3.15) (2026-11-21)
+
+
+### 🐛 Bug 修复
+
+* 更新冲突时列出被拒绝覆盖的文件 ([256617c](https://github.com/HL-z7/JiuLi/commit/256617c5f69fcb29a9768c6b08d02dc2b3dfb6ab))
+
 ## [4.3.14](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.13...jiuli-v4.3.14) (2026-11-20)
 
 
