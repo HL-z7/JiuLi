@@ -25,6 +25,8 @@ const genshin: Record<string, any> = { loaded: false }
 
 /** 共享同一个 import Promise：并发拿到的不会是"加载到一半"的对象 */
 let genshinLoading: Promise<Record<string, any>> | null = null
+/** 刷新代数：连续重载时只让最新一代的 import 结果写回缓存，避免旧代数覆盖新引用 */
+let genshinGeneration = 0
 
 /**
  * 取 genshin 生态模块
@@ -37,25 +39,46 @@ let genshinLoading: Promise<Record<string, any>> | null = null
  */
 function loadGenshin(): Promise<Record<string, any>> {
   if (!Runtime.ecosystemReady) return Promise.resolve({ ...genshin, ready: false })
-  genshinLoading ??= (async () => {
-    genshin.loaded = true
-    const tryImport = async (spec: string) => {
-      try {
-        return (await import(spec)).default
-      } catch {
-        return undefined
-      }
-    }
-    genshin.gsCfg = await tryImport('../../plugins/genshin/model/gsCfg.js')
-    genshin.MysApi = await tryImport('../../plugins/genshin/model/mys/mysApi.js')
-    genshin.MysInfo = await tryImport('../../plugins/genshin/model/mys/mysInfo.js')
-    genshin.NoteUser = await tryImport('../../plugins/genshin/model/mys/NoteUser.js')
-    genshin.MysUser = await tryImport('../../plugins/genshin/model/mys/MysUser.js')
-    genshin.Version = await tryImport('#miao')
-    if (genshin.Version) genshin.Version = genshin.Version.Version
-    return genshin
-  })()
+  genshinLoading ??= importGenshin()
   return genshinLoading
+}
+
+/**
+ * 按当前模块代数 import 一遍生态模块，成功后一次性写回缓存。
+ *
+ * 重载后旧引用指向上一代模块实例，必须换成新代数的；但导入失败时**不能**把已有引用
+ * 覆盖成 undefined —— 那会让云崽 ck/uid 兼容整体失效到下次重载成功，所以失败沿用旧值。
+ */
+async function importGenshin(): Promise<Record<string, any>> {
+  const generation = ++genshinGeneration
+  const tryImport = async (spec: string) => {
+    try {
+      return (await import(spec)).default
+    } catch {
+      return undefined
+    }
+  }
+  let next: Record<string, any>
+  try {
+    next = {
+      gsCfg: await tryImport('../../plugins/genshin/model/gsCfg.js'),
+      MysApi: await tryImport('../../plugins/genshin/model/mys/mysApi.js'),
+      MysInfo: await tryImport('../../plugins/genshin/model/mys/mysInfo.js'),
+      NoteUser: await tryImport('../../plugins/genshin/model/mys/NoteUser.js'),
+      MysUser: await tryImport('../../plugins/genshin/model/mys/MysUser.js'),
+      Version: (await tryImport('#miao'))?.Version,
+    }
+  } catch (error) {
+    logger.warn(`[Runtime] genshin 生态模块导入失败：${error}`)
+    return { ...genshin, ready: false }
+  }
+  if (generation !== genshinGeneration) return { ...genshin, ready: false }
+  genshin.loaded = true
+  for (const [key, value] of Object.entries(next)) {
+    if (value !== undefined) genshin[key] = value
+    else if (genshin[key] !== undefined) logger.debug(`[Runtime] genshin 模块 ${key} 导入失败，沿用旧引用`)
+  }
+  return genshin
 }
 
 export default class Runtime {
@@ -75,13 +98,18 @@ export default class Runtime {
    */
   static ecosystemReady = false
 
-  /** 由 loader 调用：genshin 导入成功；重载后同步 Runtime 已缓存的模型引用。 */
+  /**
+   * 由 loader 调用：genshin 导入成功
+   *
+   * 重载后 Runtime 缓存的引用仍指向上一代模块实例，这里换成新代数的。
+   * 刷新失败不丢已有引用（见 importGenshin），也不会向外抛：loader 在插件导入的 try 里
+   * 调用本方法，reject 会被当成 genshin 插件加载失败并卸载它。
+   */
   static async markEcosystemReady() {
     this.ecosystemReady = true
-    if (genshinLoading) {
-      genshinLoading = null
-      await loadGenshin()
-    }
+    if (!genshinLoading) return
+    genshinLoading = null
+    await loadGenshin()
   }
 
   /**
