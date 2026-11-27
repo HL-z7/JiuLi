@@ -75,9 +75,13 @@ export default class Runtime {
    */
   static ecosystemReady = false
 
-  /** 由 loader 调用：plugins/genshin 导入成功 */
-  static markEcosystemReady() {
+  /** 由 loader 调用：genshin 导入成功；重载后同步 Runtime 已缓存的模型引用。 */
+  static async markEcosystemReady() {
     this.ecosystemReady = true
+    if (genshinLoading) {
+      genshinLoading = null
+      await loadGenshin()
+    }
   }
 
   /**

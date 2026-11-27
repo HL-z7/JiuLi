@@ -645,7 +645,7 @@ class PluginsLoader {
        * 框架再去 import 会复用坏模块（TDZ，甚至 V8 Fatal 把进程杀掉）。
        */
       if (success && String(file.name).split('/')[0].toLowerCase() === 'genshin')
-        Runtime.markEcosystemReady()
+        await Runtime.markEcosystemReady()
     } catch (error: any) {
       success = false
       failReason = error
