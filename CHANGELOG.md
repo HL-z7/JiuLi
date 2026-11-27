@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.3.16](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.15...jiuli-v4.3.16) (2026-11-27)
+
+
+### 🐛 Bug 修复
+
+* genshin 重载刷新失败时保留已有模块引用 ([1709fa8](https://github.com/HL-z7/JiuLi/commit/1709fa8f2ee8334d445c4507d81a586fd7c7eb46))
+* **runtime:** refresh genshin model references after reload ([dc29380](https://github.com/HL-z7/JiuLi/commit/dc29380e3c8fee81571d3c6af22601bf80a886a4))
+* **runtime:** refresh genshin model references after reload ([6570d2a](https://github.com/HL-z7/JiuLi/commit/6570d2aec85085824ea74be756e1f14edf81b757))
+
 ## [4.3.15](https://github.com/HL-z7/JiuLi/compare/jiuli-v4.3.14...jiuli-v4.3.15) (2026-11-21)
 
 
