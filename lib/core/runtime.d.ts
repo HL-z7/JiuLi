@@ -27,8 +27,14 @@ export default class Runtime {
      * import 是纯缓存命中；插件没加载好时框架一律不碰它的模块图（见 loadGenshin 注释）。
      */
     static ecosystemReady: boolean;
-    /** 由 loader 调用：plugins/genshin 导入成功 */
-    static markEcosystemReady(): void;
+    /**
+     * 由 loader 调用：genshin 导入成功
+     *
+     * 重载后 Runtime 缓存的引用仍指向上一代模块实例，这里换成新代数的。
+     * 刷新失败不丢已有引用（见 importGenshin），也不会向外抛：loader 在插件导入的 try 里
+     * 调用本方法，reject 会被当成 genshin 插件加载失败并卸载它。
+     */
+    static markEcosystemReady(): Promise<void>;
     /**
      * 已加载的 genshin 生态模块：`{ gsCfg, MysApi, MysInfo, NoteUser, MysUser, Version }`
      *
